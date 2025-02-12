@@ -4,6 +4,8 @@
 
 打开哔哩哔哩移动端，点击我的，往下找到个性装扮，显示的各种各样的收藏集之类的就是啦！！！
 
+
+
 ## 二、数字周边链接格式
 
 PC端：
@@ -11,6 +13,8 @@ https://www.bilibili.com/blackboard/activity-Mz9T5bO5Q3.html?id=数字周边ID�
 
 移动端：
 https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=数字周边ID号&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=weixin&ts=毫秒时间戳
+
+
 
 ## 二、项目文件说明
 
@@ -23,6 +27,8 @@ cors.html使用免费提供反代的API接口解决本地请求B站资源的CORS
 index.html需要手动从跳转的新页面复制json数据粘贴到第三步输入框中！
 
 详细使用说明看项目页面内部说明！！！
+
+
 
 ## 三、一些数字周边链接
 
@@ -69,6 +75,8 @@ https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=106098&
 https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=102857&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq&ts=1739027981656
 
 https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=104978&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq&ts=1739027737691
+
+
 
 ## 四、感谢
 
