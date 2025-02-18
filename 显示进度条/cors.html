@@ -152,12 +152,12 @@
 						}
 					}
 
-					// 追加动态表情包图片
+					// 追加静态/动态表情包图片
 					const collectInfos = infos.collect_list?.collect_infos;
 					if (collectInfos?.length > 0) {
-						const lastItem = collectInfos[collectInfos.length - 1];
-						if (lastItem?.redeem_item_name && lastItem?.redeem_item_image) {
-							if (lastItem.redeem_item_name.endsWith("动态表情包")) {
+                                                                                               collectInfos.forEach((lastItem,index)=>{
+                                                                                                   if (lastItem?.redeem_item_name && lastItem?.redeem_item_image) {
+							if (lastItem.redeem_item_name.endsWith("表情包")  || lastItem.redeem_item_name.endsWith("动态表情包")) {
 								infos.item_list.push({
 									card_info: {
 										card_name: lastItem.redeem_item_name,
@@ -166,6 +166,7 @@
 								});
 							}
 						}
+                                                                                     });				
 					}
 				create(infos['item_list']);
 			} catch(err) {
