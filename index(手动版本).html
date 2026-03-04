@@ -209,12 +209,29 @@
                 <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">用B站移动端APP打开个性装扮，进入想要下载的数字周边，点击右上角分享获取链接（建议分享到QQ复制链接）。</p>
                 <textarea id="filepath" rows="4" placeholder="在此处粘贴分享URL，例如：https://www.bilibili.com/h5/mall/..."></textarea>
                 <div style="margin-top: 10px; text-align: right;">
-                    <button onclick="getData()">解析基础数据</button>
+                    <button onclick="openBasicApi()">打开基础接口</button>
                 </div>
             </div>
 
             <div class="step-container">
-                <div class="step-title"><span class="step-badge">2</span> 获取媒体数据</div>
+    <div class="step-title">
+        <span class="step-badge">2</span> 获取数字周边信息
+    </div>
+
+    <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">
+        点击下方按钮打开基础信息接口，复制全部 JSON 粘贴到此处，然后点击“解析并打开媒体接口”。
+    </p>
+
+    <textarea id="basic-data" rows="6"
+        placeholder="在此处粘贴基础接口 JSON 数据..."></textarea>
+
+    <div style="margin-top: 10px; text-align: right;">
+        <button onclick="openDetailApi()">解析并打开媒体接口</button>
+    </div>
+</div>
+
+            <div class="step-container">
+                <div class="step-title"><span class="step-badge">3</span> 获取媒体数据</div>
                 <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">在上一步弹出的新窗口中，复制页面所有的 JSON 文本，粘贴到下方，然后点击“渲染视频与图片”。</p>
                 <textarea id="data" rows="6" placeholder="在此处粘贴刚刚打开的网页中的 JSON 数据..."></textarea>
                 <div style="margin-top: 10px; text-align: right;">
@@ -282,38 +299,60 @@
     }
 }
 
-        function getData() {
-            const filepath = document.getElementById('filepath').value.trim();
+        function openBasicApi() {
+    const filepath = document.getElementById('filepath').value.trim();
 
-            if (!filepath) {
-                alert("URL路径不能为空！");
-                return;
-            }
+    if (!filepath) {
+        alert("URL路径不能为空！");
+        return;
+    }
 
-            const id = getParam(filepath, 'act_id') || getParam(filepath, 'id');
-            if (!id) {
-                alert("URL路径有误，未找到 act_id 或 id，请检查！");
-                return;
-            }
+    const id = getParam(filepath, 'act_id') || getParam(filepath, 'id');
 
-            fetch(`https://api.codetabs.com/v1/proxy?quest=https://api.bilibili.com/x/vas/dlc_act/act/basic?act_id=${id}&csrf=`)
-                .then(response => {
-                    if (!response.ok) throw new Error("获取作品 lottery_id 失败");
-                    return response.json();
-                })
-                .then(data => {
-                    const lotteryId = data?.data?.tab_lottery_id;
-                    if (!lotteryId) throw new Error("接口未返回有效的 lottery_id");
-                    
-                    const url = `https://api.bilibili.com/x/vas/dlc_act/lottery_home_detail?act_id=${id}&appkey=1d8b6e7d45233436&disable_rcmd=0&sign=341070dd7b86b7ce7c3655972d9824a7&lottery_id=${lotteryId}&ts=${Math.floor(Date.now()/1000)}&mobi_app=android&platform=android`;
-                    
-                    alert('即将打开新窗口，请将新窗口中的所有内容复制，并粘贴到第 2 步的输入框中！');
-                    window.open(url, '_blank');
-                })
-                .catch(err => {
-                    alert(`网络请求出现错误：${err.message}`);
-                });
-        }
+    if (!id) {
+        alert("URL路径有误，未找到 act_id 或 id！");
+        return;
+    }
+
+    const basicUrl =
+        `https://api.bilibili.com/x/vas/dlc_act/act/basic?act_id=${id}&csrf=`;
+
+    alert("即将打开基础信息接口，请复制页面全部 JSON 并粘贴到第二步！");
+    window.open(basicUrl, '_blank');
+}
+
+        function openDetailApi() {
+    try {
+        const basicDataText = document.getElementById('basic-data').value.trim();
+        if (!basicDataText) throw new Error("基础 JSON 不能为空！");
+
+        const basicJson = JSON.parse(basicDataText);
+
+        const lotteryId =
+            basicJson?.data?.tab_lottery_id ||
+            basicJson?.data?.lottery_list?.[0]?.lottery_id;
+
+        if (!lotteryId) throw new Error("未找到有效 lottery_id");
+
+        const filepath = document.getElementById('filepath').value.trim();
+        const id = getParam(filepath, 'act_id') || getParam(filepath, 'id');
+
+        const detailUrl =
+            `https://api.bilibili.com/x/vas/dlc_act/lottery_home_detail?act_id=${id}` +
+            `&appkey=1d8b6e7d45233436` +
+            `&disable_rcmd=0` +
+            `&sign=341070dd7b86b7ce7c3655972d9824a7` +
+            `&lottery_id=${lotteryId}` +
+            `&ts=${Math.floor(Date.now()/1000)}` +
+            `&mobi_app=android&platform=android`;
+
+        alert("即将打开媒体数据接口，请复制页面全部 JSON 并粘贴到第三步！");
+        window.open(detailUrl, '_blank');
+
+    } catch (err) {
+        alert("解析基础数据失败：" + err.message);
+    }
+}
 
         function getVideos() {
             try {
