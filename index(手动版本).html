@@ -54,6 +54,10 @@
             justify-content: space-between;
         }
 
+        /* Github Icon Hover Effect */
+        .github-icon { color: var(--text-main); transition: color 0.3s ease, filter 0.3s ease; display: flex; align-items: center; }
+        .github-icon:hover { color: var(--primary); filter: drop-shadow(0 0 8px var(--primary-glow)); }
+
         .step-container { margin-bottom: 24px; }
         
         .step-title { 
@@ -202,7 +206,14 @@
 <body>
     <div class="container">
         <div class="panel">
-            <h1>B站数字周边提取工具</h1>
+            <h1>
+                B站数字周边提取工具
+                <a href="https://github.com/Iskongkongyo" target="_blank" class="github-icon" title="访问我的 GitHub 主页">
+                    <svg height="28" width="28" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+                    </svg>
+                </a>
+            </h1>
             
             <div class="step-container">
                 <div class="step-title"><span class="step-badge">1</span> 获取链接</div>
@@ -214,21 +225,17 @@
             </div>
 
             <div class="step-container">
-    <div class="step-title">
-        <span class="step-badge">2</span> 获取数字周边信息
-    </div>
-
-    <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">
-        点击下方按钮打开基础信息接口，复制全部 JSON 粘贴到此处，然后点击“解析并打开媒体接口”。
-    </p>
-
-    <textarea id="basic-data" rows="6"
-        placeholder="在此处粘贴基础接口 JSON 数据..."></textarea>
-
-    <div style="margin-top: 10px; text-align: right;">
-        <button onclick="openDetailApi()">解析并打开媒体接口</button>
-    </div>
-</div>
+                <div class="step-title">
+                    <span class="step-badge">2</span> 获取数字周边信息
+                </div>
+                <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">
+                    点击下方按钮打开基础信息接口，复制全部 JSON 粘贴到此处，然后点击“解析并打开媒体接口”。
+                </p>
+                <textarea id="basic-data" rows="6" placeholder="在此处粘贴基础接口 JSON 数据..."></textarea>
+                <div style="margin-top: 10px; text-align: right;">
+                    <button onclick="openDetailApi()">解析并打开媒体接口</button>
+                </div>
+            </div>
 
             <div class="step-container">
                 <div class="step-title"><span class="step-badge">3</span> 获取媒体数据</div>
@@ -273,86 +280,86 @@
         }
 
         // 带超时 + 重试机制的 fetch
-   async function fetchWithRetry(url, options = {}, retries = 3, timeoutMs = 20000) {
-    for (let i = 0; i < retries; i++) {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        async function fetchWithRetry(url, options = {}, retries = 3, timeoutMs = 20000) {
+            for (let i = 0; i < retries; i++) {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-        try {
-            const response = await fetch(url, { ...options, signal: controller.signal });
-            clearTimeout(timeoutId);
+                try {
+                    const response = await fetch(url, { ...options, signal: controller.signal });
+                    clearTimeout(timeoutId);
 
-            if (!response.ok) {
-                throw new Error(`HTTP 错误: ${response.status}`);
+                    if (!response.ok) {
+                        throw new Error(`HTTP 错误: ${response.status}`);
+                    }
+
+                    return response;
+                } catch (error) {
+                    clearTimeout(timeoutId);
+
+                    if (i === retries - 1) {
+                        throw new Error(`请求失败，已重试 ${retries} 次: ${error.message}`);
+                    }
+
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
             }
-
-            return response;
-        } catch (error) {
-            clearTimeout(timeoutId);
-
-            if (i === retries - 1) {
-                throw new Error(`请求失败，已重试 ${retries} 次: ${error.message}`);
-            }
-
-            await new Promise(resolve => setTimeout(resolve, 1000));
         }
-    }
-}
 
         function openBasicApi() {
-    const filepath = document.getElementById('filepath').value.trim();
+            const filepath = document.getElementById('filepath').value.trim();
 
-    if (!filepath) {
-        alert("URL路径不能为空！");
-        return;
-    }
+            if (!filepath) {
+                alert("URL路径不能为空！");
+                return;
+            }
 
-    const id = getParam(filepath, 'act_id') || getParam(filepath, 'id');
+            const id = getParam(filepath, 'act_id') || getParam(filepath, 'id');
 
-    if (!id) {
-        alert("URL路径有误，未找到 act_id 或 id！");
-        return;
-    }
+            if (!id) {
+                alert("URL路径有误，未找到 act_id 或 id！");
+                return;
+            }
 
-    const basicUrl =
-        `https://api.bilibili.com/x/vas/dlc_act/act/basic?act_id=${id}&csrf=`;
+            const basicUrl =
+                `https://api.bilibili.com/x/vas/dlc_act/act/basic?act_id=${id}&csrf=`;
 
-    alert("即将打开基础信息接口，请复制页面全部 JSON 并粘贴到第二步！");
-    window.open(basicUrl, '_blank');
-}
+            alert("即将打开基础信息接口，请复制页面全部 JSON 并粘贴到第二步！");
+            window.open(basicUrl, '_blank');
+        }
 
         function openDetailApi() {
-    try {
-        const basicDataText = document.getElementById('basic-data').value.trim();
-        if (!basicDataText) throw new Error("基础 JSON 不能为空！");
+            try {
+                const basicDataText = document.getElementById('basic-data').value.trim();
+                if (!basicDataText) throw new Error("基础 JSON 不能为空！");
 
-        const basicJson = JSON.parse(basicDataText);
+                const basicJson = JSON.parse(basicDataText);
 
-        const lotteryId =
-            basicJson?.data?.tab_lottery_id ||
-            basicJson?.data?.lottery_list?.[0]?.lottery_id;
+                const lotteryId =
+                    basicJson?.data?.tab_lottery_id ||
+                    basicJson?.data?.lottery_list?.[0]?.lottery_id;
 
-        if (!lotteryId) throw new Error("未找到有效 lottery_id");
+                if (!lotteryId) throw new Error("未找到有效 lottery_id");
 
-        const filepath = document.getElementById('filepath').value.trim();
-        const id = getParam(filepath, 'act_id') || getParam(filepath, 'id');
+                const filepath = document.getElementById('filepath').value.trim();
+                const id = getParam(filepath, 'act_id') || getParam(filepath, 'id');
 
-        const detailUrl =
-            `https://api.bilibili.com/x/vas/dlc_act/lottery_home_detail?act_id=${id}` +
-            `&appkey=1d8b6e7d45233436` +
-            `&disable_rcmd=0` +
-            `&sign=341070dd7b86b7ce7c3655972d9824a7` +
-            `&lottery_id=${lotteryId}` +
-            `&ts=${Math.floor(Date.now()/1000)}` +
-            `&mobi_app=android&platform=android`;
+                const detailUrl =
+                    `https://api.bilibili.com/x/vas/dlc_act/lottery_home_detail?act_id=${id}` +
+                    `&appkey=1d8b6e7d45233436` +
+                    `&disable_rcmd=0` +
+                    `&sign=341070dd7b86b7ce7c3655972d9824a7` +
+                    `&lottery_id=${lotteryId}` +
+                    `&ts=${Math.floor(Date.now()/1000)}` +
+                    `&mobi_app=android&platform=android`;
 
-        alert("即将打开媒体数据接口，请复制页面全部 JSON 并粘贴到第三步！");
-        window.open(detailUrl, '_blank');
+                alert("即将打开媒体数据接口，请复制页面全部 JSON 并粘贴到第三步！");
+                window.open(detailUrl, '_blank');
 
-    } catch (err) {
-        alert("解析基础数据失败：" + err.message);
-    }
-}
+            } catch (err) {
+                alert("解析基础数据失败：" + err.message);
+            }
+        }
 
         function getVideos() {
             try {
@@ -435,89 +442,103 @@
         }
 
         async function downloadFilesAsZip() {
-    if (fileUrls.length === 0) {
-        alert('没有找到可以下载的资源文件！');
-        return;
-    }
+            if (fileUrls.length === 0) {
+                alert('没有找到可以下载的资源文件！');
+                return;
+            }
 
-    if (isDownloading) {
-        alert('正在下载中，请稍后再试！频繁下载可能触发风控。');
-        return;
-    }
+            if (isDownloading) {
+                alert('正在下载中，请稍后再试！频繁下载可能触发风控。');
+                return;
+            }
 
-    // ⭐⭐⭐ 创建下载快照（核心修复）
-    const targetUrls = [...fileUrls];
-    const targetNames = [...fileNames];
-    const targetZipName = zipName;
+            // ⭐⭐⭐ 创建下载快照
+            const targetUrls = [...fileUrls];
+            const targetNames = [...fileNames];
+            const targetZipName = zipName;
 
-    const progressContainer = document.getElementById('progress-container');
-    const progressBar = document.getElementById('download-progress');
-    const progressText = document.getElementById('progressText');
-    const downloadBtn = document.getElementById('download-btn');
+            // ⭐ 智能去重命名逻辑
+            const nameOccurrenceMap = {};
+            const finalFileNames = targetNames.map(name => {
+                let safeName = name.replace(/[\\/:*?"<>|]/g, '');
+                if (nameOccurrenceMap[safeName] !== undefined) {
+                    nameOccurrenceMap[safeName]++;
+                    return `${safeName}_${nameOccurrenceMap[safeName]}`;
+                } else {
+                    nameOccurrenceMap[safeName] = 0;
+                    return safeName;
+                }
+            });
 
-    isDownloading = true;
-    progressContainer.style.display = 'block';
-    downloadBtn.disabled = true;
+            const progressContainer = document.getElementById('progress-container');
+            const progressBar = document.getElementById('download-progress');
+            const progressText = document.getElementById('progressText');
+            const downloadBtn = document.getElementById('download-btn');
 
-    const zip = new JSZip();
-    let downloadedCount = 0;
+            isDownloading = true;
+            progressContainer.style.display = 'block';
+            downloadBtn.disabled = true;
 
-    const promises = targetUrls.map(async (url, index) => {
-        try {
-            // ⭐ 使用带超时 + 重试的 fetch
-            const response = await fetchWithRetry(url, {}, 3, 20000);
-            const blob = await response.blob();
+            const zip = new JSZip();
+            let downloadedCount = 0;
 
-            const urlObj = new URL(url);
-            const match = urlObj.pathname.match(/\.[a-zA-Z0-9]{2,}$/i);
-            const ext = match ? match[0] : (blob.type.includes('video') ? '.mp4' : '.jpg');
+            const promises = targetUrls.map(async (url, index) => {
+                try {
+                    // ⭐ 使用带超时 + 重试的 fetch
+                    const response = await fetchWithRetry(url, {}, 3, 20000);
+                    const blob = await response.blob();
 
-            const fileName = `${targetNames[index]}_${index}${ext}`;
-            zip.file(fileName, blob);
+                    const urlObj = new URL(url);
+                    const match = urlObj.pathname.match(/\.[a-zA-Z0-9]{2,}$/i);
+                    const ext = match ? match[0] : (blob.type.includes('video') ? '.mp4' : '.jpg');
 
-            downloadedCount++;
-            const percent = Math.floor((downloadedCount / targetUrls.length) * 100);
-            progressBar.value = percent;
-            progressText.innerText =
-                `正在下载 [${targetZipName}]... 进度 ${percent}% (${downloadedCount}/${targetUrls.length})`;
+                    // ⭐ 使用去重后的名字
+                    const fileName = `${finalFileNames[index]}${ext}`;
+                    zip.file(fileName, blob);
 
-        } catch (error) {
-            console.error(`文件下载失败: ${url}`, error);
+                    downloadedCount++;
+                    const percent = Math.floor((downloadedCount / targetUrls.length) * 100);
+                    progressBar.value = percent;
+                    progressText.innerText =
+                        `正在下载 [${targetZipName}]... 进度 ${percent}% (${downloadedCount}/${targetUrls.length})`;
 
-            // 失败不阻断整体流程
-            zip.file(
-                `下载失败记录_${index}.txt`,
-                `原链接下载失败: ${url}\n错误信息: ${error.message}`
-            );
-        }
-    });
+                } catch (error) {
+                    console.error(`文件下载失败: ${url}`, error);
 
-    try {
-        await Promise.all(promises);
+                    // 失败不阻断整体流程
+                    zip.file(
+                        `下载失败记录_${index}.txt`,
+                        `原链接下载失败: ${url}\n错误信息: ${error.message}`
+                    );
+                }
+            });
 
-        progressText.innerText = '下载完成，正在拼命压缩中，请稍候...';
+            try {
+                await Promise.all(promises);
 
-        setTimeout(async () => {
-            const content = await zip.generateAsync({ type: 'blob' });
-            saveAs(content, `${targetZipName}.zip`);
+                progressText.innerText = '下载完成，正在拼命压缩中，请稍候...';
 
-            progressText.innerText = '压缩完毕！文件已保存。';
+                setTimeout(async () => {
+                    const content = await zip.generateAsync({ type: 'blob' });
+                    saveAs(content, `${targetZipName}.zip`);
 
-            setTimeout(() => {
-                progressContainer.style.display = 'none';
-                progressBar.value = 0;
+                    progressText.innerText = '压缩完毕！文件已保存。';
+
+                    setTimeout(() => {
+                        progressContainer.style.display = 'none';
+                        progressBar.value = 0;
+                        isDownloading = false;
+                        downloadBtn.disabled = false;
+                    }, 3000);
+
+                }, 100);
+
+            } catch (error) {
+                alert(`打包下载失败：${error.message}`);
                 isDownloading = false;
                 downloadBtn.disabled = false;
-            }, 3000);
-
-        }, 100);
-
-    } catch (error) {
-        alert(`打包下载失败：${error.message}`);
-        isDownloading = false;
-        downloadBtn.disabled = false;
-    }
-}
+            }
+        }
     </script>
 </body>
 </html>

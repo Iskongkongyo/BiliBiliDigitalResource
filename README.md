@@ -1,91 +1,135 @@
-# B站数字周边内容获取和下载
+# 🎁 B站数字周边提取工具 (Bili-Collectible-Extractor)
 
-> [!TIP]
+> 看到 B 站里炫酷的动态头像、精致的表情包和空间背景，却只能在 APP 里看着流口水？想保存下来当壁纸？
 >
-> index(手动版本).html和cors(自动版本).html均可用，前者是手动版本（需要在新弹窗获取数据并粘贴到“**获取数字周边信息**”和“**获取媒体数据**”输入框），后者是自动版本（只需粘贴链接到“**获取链接**”输入框并点击“一键智能解析”等待获取视频和图片即可）。
+> **别慌，这个项目就是为了打破这些枷锁而生的！** 🚀
+
+这是一个基于 **Cloudflare Workers** 打造的纯 Serverless 级 B 站数字周边解析与下载工具。前端极简唯美，后端硬核防盗。只需要一键部署，你就能实现B站数字周边自由！
 
 > [!CAUTION]
 >
-> 下载到本地使用，不要部署在服务器、对象存储等服务，通过域名或IP访问直链！要么会出现“出错了”无法获取内容，要么在最后显示内容时报错403（判断是请求头中的Origin和Referer不是B站链接导致的！）
+> 注意：如果不想费时费力部署，可直接下载[index(手动版本).html](./index(手动版本).html)或[cors(自动版本).html](./cors(自动版本).html)到本地使用！这两者在操作上面有一定的区别！前者是全手动版本（需要在新弹窗获取数据并粘贴到“**获取数字周边信息**”和“**获取媒体数据**”输入框），后者是自动版本（只需粘贴链接到“**获取链接**”输入框并点击“一键智能解析”等待获取视频和图片即可）。
 
-## 一、找到数字周边内容
+## ✨ 核心亮点 (Features)
 
-打开哔哩哔哩移动端，点击我的，往下找到个性装扮，显示的各种各样的收藏集之类的就是啦！！！
+- **🪄 一键智能解析**：只需粘贴 B 站 APP 里的分享链接，自动拉取所有高清卡面、视频素材、动态头像和表情包。
+- **🛡️ 降维打击防盗链**：原生集成 Cloudflare Worker 反向代理。突破 B 站图片/视频 CDN 的 `403 Forbidden` 拦截，完美解决前端跨域 (CORS) 报错。
+- **👮 接口防滥用 (JWT)**：后端自动抓取素材源域名并签发 JWT (JSON Web Token) 会话级 Cookie。就算别人摸到了你的 Worker 接口，没有合法 Token 也是一律拒之门外！
+- **🔒 私有化部署 (Basic Auth)**：支持配置全局账号密码，把工具私有化，杜绝野生网友白嫖你的流量。
+- **📦 强迫症福音的打包下载**：一键将数个视频和图片打包成 `.zip`。自带**智能去重命名**算法，不用担心同名表情包相互覆盖！
+- **⚡ 纯粹的 Serverless**：零服务器成本！不需要购买 VPS，不需要装 Node.js，一个 Cloudflare 账号搞定一切前后端逻辑。
 
-## 二、数字周边链接格式
+------
 
-PC端：
-https://www.bilibili.com/blackboard/activity-Mz9T5bO5Q3.html?id=数字周边ID号&type=dlc&f_source=plat&from=share
+## 🚀 极速部署指南 (Deployment)
 
-移动端：
-https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=数字周边ID号&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=weixin&ts=毫秒时间戳
+只需要 3 分钟，你就能拥有它！
 
+### 第一步：创建 Worker
 
+1. 登录你的 [Cloudflare 控制台](https://dash.cloudflare.com/)。
+2. 在左侧菜单找到 **Workers & Pages**，点击 `Create Application` -> `Create Worker`。
+3. 随便起个炫酷的名字（比如 `bili-extractor`），点击 `Deploy`。
+4. 点击 `Edit code`，把本项目中的 `worker.js` 代码 **全选复制粘贴** 进去，保存并部署。
 
-## 二、项目文件说明
+### 第二步：配置环境变量（高能预警 ⚠️）
 
-不带进度条即项目在下载/压缩视频过程没有进度显示！！！
+为了你的接口安全和私密性，**强烈建议**在控制台配置环境变量（不用改代码！）：
 
-显示进度条即项目会时刻显示视频下载和压缩进度！！！
+进入你刚建好的 Worker 详情页 -> **Settings (设置)** -> **Variables and Secrets (变量和机密)**，添加以下变量：
 
-cors.html使用免费提供反代的API接口解决本地请求B站资源的CORS问题！
+| **变量名 (Variable Name)** | **示例值 (Value)**   | **作用说明**                                        |
+| -------------------------- | -------------------- | --------------------------------------------------- |
+| `JWT_SECRET`               | `随便乱敲一长串字符` | **【必填】** 用于加密会话的密钥。越长越复杂越好！   |
+| `BASIC_USER`               | `admin`              | **【选填】** 访问页面的账号。留空则所有人均可访问。 |
+| `BASIC_PASS`               | `123456`             | **【选填】** 访问页面的密码。必须和上面搭配使用。   |
 
-index.html需要手动从跳转的新页面复制json数据粘贴到第三步输入框中！
+> *注：修改环境变量后，可能需要重新部署一下 Worker 才能生效哦！*
 
-详细使用说明看项目页面内部说明！！！
+### 第三步：绑定自定义域名（可选）
 
+嫌 Cloudflare 自带的 `workers.dev` 域名被墙了不好记？
 
+在 Worker 详情页的 **Triggers (触发器)** -> **Custom Domains (自定义域)** 里，绑定一个你在 CF 托管的域名，比如 `bili.yourdomain.com`，瞬间逼格满满！
 
-## 三、一些数字周边链接
+------
 
-我找了一些还不错的数字周边链接，拿出来分享一下！
+## 🎮 怎么玩？(Usage)
 
-https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=104671&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=weixin&ts=1732437215435
+1. 打开 B 站移动端 APP，进入 **我的 -> 个性装扮 -> 搜索你想找的装扮**。
+2. 点击右上角的 **分享**，复制链接（建议分享到 QQ 提取出纯净的 URL）。
+3. 打开你部署好的工具网页，如果有提示框就输入你设置的账号密码。
+4. 把链接往输入框里一扔，点击 **“一键智能解析”**。
+5. 欣赏满屏的高清素材，点击 **“打包下载全部”**。泡杯茶，等待 ZIP 文件落入你的硬盘。☕
 
-https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=103031&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq&ts=1732439979680
+------
 
-https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=101221&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq&ts=1732443452258
+## 🛠️ 技术栈 (Tech Stack)
 
-https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=100858&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq&ts=1732443473009
+- **前端**：原生 HTML + CSS Grid + 原生 Fetch API
+- **第三方库**：[JSZip](https://stuk.github.io/jszip/) (打包压缩) + [FileSaver.js](https://www.google.com/search?q=https://github.com/eligrey/FileSaver.js) (触发下载)
+- **后端**：Cloudflare Workers (V8 引擎) + Web Crypto API (手搓 JWT)
 
-https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=102605&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq&ts=1732443554695
+------
 
-https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=103874&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq&ts=1732725115025
+## ✨ 一些数字周边链接
 
-https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=102546&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq&ts=1732725082473
+我找到了一些还不错的数字周边链接，拿出来分享一下！
 
-https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=279&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq&ts=1732725032622
+https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=104671&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=weixin
 
-https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=100858&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq&ts=1733066232842
+https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=103031&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
 
-https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=102794&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq&ts=1733066140022
+https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=101221&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
 
-https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=293&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq&ts=1733066182519
+https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=100858&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
 
-https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=104783&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq&ts=1733118588435
+https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=102605&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
 
-https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=104572&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq&ts=1739028480160
+https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=103874&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
 
-https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=148&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq&ts=1739028437777
+https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=102546&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
 
-https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=102546&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq&ts=1739028383231
+https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=279&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
 
-https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=113&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq&ts=1739028341043
+https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=100858&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
 
-https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=104459&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq&ts=1739028267196
+https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=102794&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
 
-https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=105435&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq&ts=1739028199582
+https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=293&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
 
-https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=106098&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq&ts=1739028165830
+https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=104783&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
 
-https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=102857&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq&ts=1739027981656
+https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=104572&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
 
-https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=104978&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq&ts=1739027737691
+https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=148&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
 
+https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=102546&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
 
+https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=113&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
 
-## 四、感谢
+https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=104459&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
 
-[哔哩哔哩](https://www.bilibili.com)
+https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=105435&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
 
-[codetabs](https://codetabs.com/)
+https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=106098&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
+
+https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=102857&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
+
+https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=104978&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
+
+------
+
+## ⚠️ 免责声明 (Disclaimer)
+
+1. 本工具仅供个人学习、研究前端跨域及 Cloudflare Workers 技术使用。
+2. 解析获取的数字周边版权均属于 **Bilibili 及原作者** 所有。请勿将下载的素材用于任何商业用途或二次倒卖，否则后果自负（律师函警告 ✉️）。
+3. 适度下载，频繁的大批量请求可能会导致你的 IP 或账号触发 B 站风控体系。
+
+------
+
+## 🙏 致谢
+
+[哔哩哔哩](https://www.bilibili.com/)
+
+[Cloudflare](https://www.cloudflare.com/)
