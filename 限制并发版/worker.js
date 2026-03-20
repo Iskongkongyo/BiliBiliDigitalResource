@@ -245,6 +245,7 @@ const htmlContent = `
         .step-badge { background: var(--primary); color: #fff; width: 24px; height: 24px; border-radius: 50%; display: inline-flex; justify-content: center; align-items: center; font-size: 14px; box-shadow: 0 0 8px var(--primary-glow); }
         textarea { width: 100%; box-sizing: border-box; background: #ffffff; border: 1px solid var(--border-color); color: var(--text-main); padding: 15px; border-radius: 8px; resize: vertical; font-family: monospace; transition: all 0.3s; }
         textarea:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px var(--primary-glow); }
+        a {text-decoration: none; color: #1CBD87;      font-weight: bold; }
         button { background: var(--primary); color: #fff; border: none; padding: 10px 24px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 15px; transition: all 0.3s ease; box-shadow: 0 4px 12px var(--primary-glow); }
         button:hover { background: #059669; transform: translateY(-2px); }
         button:disabled { background: #94a3b8; cursor: not-allowed; box-shadow: none; transform: none; }
@@ -272,7 +273,7 @@ const htmlContent = `
             </h1>
             <div class="step-container">
                 <div class="step-title"><span class="step-badge">1</span> 获取链接</div>
-                <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">用B站移动端APP打开个性装扮，进入想要下载的数字周边，点击右上角分享获取链接。</p>
+                <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">用B站移动端APP打开<a href="bilibili://forward?-Btarget=https%3A%2F%2Fwww.bilibili.com%2Fh5%2Fmall%2Fhome%3Fnavhide%3D1" >个性装扮(点我即达)</a>，进入想要下载的数字周边，点击右上角分享获取链接。</p>
                 <textarea id="filepath" rows="4" placeholder="在此处粘贴分享URL，例如：https://www.bilibili.com/h5/mall/..."></textarea>
                 <div style="margin-top: 10px; text-align: right;"><button id="fetch-btn" onclick="getData()">一键智能解析</button></div>
             </div>
@@ -332,11 +333,11 @@ const htmlContent = `
                 try {
                     const response = await fetch(url, { ...options, credentials: 'same-origin', signal: controller.signal });
                     clearTimeout(timeoutId);
-                    if (!response.ok) throw new Error(\`HTTP ${response.status}\`);
+                    if (!response.ok) throw new Error(\`HTTP \${response.status}\`);
                     return response;
                 } catch (error) {
                     clearTimeout(timeoutId);
-                    if (i === retries - 1) throw new Error(\`重试 ${retries} 次失败: ${error.message}\`);
+                    if (i === retries - 1) throw new Error(\`重试 \${retries} 次失败: \${error.message}\`);
                     await new Promise(resolve => setTimeout(resolve, 1000));
                 }
             }
@@ -351,18 +352,18 @@ const htmlContent = `
             btn.innerText = '正在获取安全令牌与数据...';
             btn.disabled = true;
             try {
-                const basicRes = await fetch(\`/api/basic?act_id=${id}\`);
+                const basicRes = await fetch(\`/api/basic?act_id=\${id}\`);
                 if (!basicRes.ok) throw new Error('基础接口请求失败');
                 const basicData = await basicRes.json();
                 const lotteryId = basicData?.data?.tab_lottery_id || basicData?.data?.lottery_list?.[0]?.lottery_id;
                 if (!lotteryId) throw new Error('未找到有效的 lottery_id');
-                const detailRes = await fetch(\`/api/detail?act_id=${id}&lottery_id=${lotteryId}\`);
+                const detailRes = await fetch(\`/api/detail?act_id=\${id}&lottery_id=\${lotteryId}\`);
                 if (!detailRes.ok) throw new Error('详情接口请求失败');
                 const detailData = await detailRes.json();
                 document.getElementById('data').value = JSON.stringify(detailData, null, 2);
                 getVideos();
             } catch (err) {
-                alert(\`自动获取数据失败：${err.message}\`);
+                alert(\`自动获取数据失败：\${err.message}\`);
             } finally {
                 btn.innerText = originalBtnText;
                 btn.disabled = false;
@@ -376,12 +377,12 @@ const htmlContent = `
                 const infos = jsonData?.data || {};
                 zipName = infos.name || '数字周边';
                 document.getElementById('result-panel').style.display = 'block';
-                document.getElementById('result-title').childNodes[0].nodeValue = \`${zipName} \`;
+                document.getElementById('result-title').childNodes[0].nodeValue = \`\${zipName} \`;
                 const itemList = Array.isArray(infos.item_list) ? [...infos.item_list] : [];
                 const seen = new Set();
                 function addImageItem(cardName, cardImg) {
                     if (!cardImg) return;
-                    const key = \`${cardName || ''}::${cardImg}\`;
+                    const key = \`\${cardName || ''}::\${cardImg}\`;
                     if (seen.has(key)) return;
                     seen.add(key);
                     itemList.push({ card_info: { card_name: cardName, card_img: cardImg } });
@@ -389,7 +390,7 @@ const htmlContent = `
                 itemList.forEach(item => {
                     const cardInfo = item?.card_info;
                     if (!cardInfo) return;
-                    const key = \`${cardInfo.card_name || ''}::${cardInfo.card_img || cardInfo.video_list?.[0] || ''}\`;
+                    const key = \`\${cardInfo.card_name || ''}::\${cardInfo.card_img || cardInfo.video_list?.[0] || ''}\`;
                     seen.add(key);
                 });
                 const collectChain = infos.collect_list?.collect_chain;
@@ -406,7 +407,7 @@ const htmlContent = `
                 }
                 renderGrid(itemList);
             } catch (err) {
-                alert(\`解析数据出错，请确保输入的是完整的 JSON 格式：${err.message}\`);
+                alert(\`解析数据出错，请确保输入的是完整的 JSON 格式：\${err.message}\`);
             }
         }
         function renderGrid(itemList) {
@@ -424,9 +425,9 @@ const htmlContent = `
                 wrapper.className = 'media-card';
                 const title = document.createElement('div');
                 title.className = 'title';
-                title.innerText = sanitizeFileName(cardInfo.card_name || \`未命名素材 ${index + 1}\`);
+                title.innerText = sanitizeFileName(cardInfo.card_name || \`未命名素材 \${index + 1}\`);
                 if (rawVideoUrl) {
-                    const proxiedVideoUrl = \`/proxy?url=${encodeURIComponent(rawVideoUrl)}\`;
+                    const proxiedVideoUrl = \`/proxy?url=\${encodeURIComponent(rawVideoUrl)}\`;
                     const video = document.createElement('video');
                     video.src = proxiedVideoUrl;
                     video.controls = true;
@@ -435,7 +436,7 @@ const htmlContent = `
                     fileUrls.push(proxiedVideoUrl);
                     fileNames.push({ name: title.innerText, originalUrl: rawVideoUrl });
                 } else {
-                    const proxiedImgUrl = \`/proxy?url=${encodeURIComponent(rawImgUrl)}\`;
+                    const proxiedImgUrl = \`/proxy?url=\${encodeURIComponent(rawImgUrl)}\`;
                     const img = document.createElement('img');
                     img.src = proxiedImgUrl;
                     img.alt = title.innerText;
@@ -455,10 +456,10 @@ const htmlContent = `
             const targetZipName = sanitizeFileName(zipName, '数字周边');
             const nameOccurrenceMap = {};
             const finalFileNames = targetData.map((item, index) => {
-                const safeName = sanitizeFileName(item?.name, \`未命名素材_${index + 1}\`);
+                const safeName = sanitizeFileName(item?.name, \`未命名素材_\${index + 1}\`);
                 if (nameOccurrenceMap[safeName] !== undefined) {
                     nameOccurrenceMap[safeName]++;
-                    return \`${safeName}_${nameOccurrenceMap[safeName]}\`;
+                    return \`\${safeName}_\${nameOccurrenceMap[safeName]}\`;
                 }
                 nameOccurrenceMap[safeName] = 0;
                 return safeName;
@@ -479,7 +480,7 @@ const htmlContent = `
             const updateProgress = () => {
                 const percent = Math.floor((completedCount / targetUrls.length) * 100);
                 progressBar.value = percent;
-                progressText.innerText = \`正在下载 [${targetZipName}]... 进度 ${percent}% (${completedCount}/${targetUrls.length})\`;
+                progressText.innerText = \`正在下载 [\${targetZipName}]... 进度 \${percent}% (\${completedCount}/\${targetUrls.length})\`;
             };
             const downloadWorker = async () => {
                 while (currentIndex < targetUrls.length) {
@@ -492,9 +493,9 @@ const htmlContent = `
                         const response = await fetchWithRetry(proxyUrl, {}, 3, 30000);
                         const blob = await response.blob();
                         inferredExt = inferExtFromUrlOrBlob(originalUrl, blob);
-                        zip.file(\`${baseName}${inferredExt}\`, blob);
+                        zip.file(\`\${baseName}\${inferredExt}\`, blob);
                     } catch (error) {
-                        zip.file(\`${baseName}_下载失败记录_${index + 1}.txt\`, \`代理链接下载失败: ${proxyUrl}\n原始链接: ${originalUrl}\n推断扩展名: ${inferredExt}\n错误: ${error.message}\`);
+                        zip.file(\`\${baseName}_下载失败记录_\${index + 1}.txt\`, \`代理链接下载失败: \${proxyUrl}\n原始链接: \${originalUrl}\n推断扩展名: \${inferredExt}\n错误: \${error.message}\`);
                     } finally {
                         completedCount++;
                         updateProgress();
@@ -505,10 +506,10 @@ const htmlContent = `
                 await Promise.all(Array.from({ length: Math.min(CONCURRENCY_LIMIT, targetUrls.length) }, () => downloadWorker()));
                 progressText.innerText = '资源下载完成，正在拼命压缩中，请稍候...';
                 const content = await zip.generateAsync({ type: 'blob' });
-                saveAs(content, \`${targetZipName}.zip\`);
+                saveAs(content, \`\${targetZipName}.zip\`);
                 progressText.innerText = '压缩完毕！文件已保存。';
             } catch (error) {
-                alert(\`打包下载失败：${error.message}\`);
+                alert(\`打包下载失败：\${error.message}\`);
             } finally {
                 setTimeout(() => {
                     progressContainer.style.display = 'none';
@@ -521,5 +522,4 @@ const htmlContent = `
     </script>
 </body>
 </html>
-
 `;

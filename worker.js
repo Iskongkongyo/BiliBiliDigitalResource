@@ -249,6 +249,7 @@ const htmlContent = `
         .step-badge { background: var(--primary); color: #fff; width: 24px; height: 24px; border-radius: 50%; display: inline-flex; justify-content: center; align-items: center; font-size: 14px; box-shadow: 0 0 8px var(--primary-glow); }
         textarea { width: 100%; box-sizing: border-box; background: #ffffff; border: 1px solid var(--border-color); color: var(--text-main); padding: 15px; border-radius: 8px; resize: vertical; font-family: monospace; transition: all 0.3s; }
         textarea:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px var(--primary-glow); }
+        a {text-decoration: none; color: #1CBD87; font-weight: bold; }
         button { background: var(--primary); color: #fff; border: none; padding: 10px 24px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 15px; transition: all 0.3s ease; box-shadow: 0 4px 12px var(--primary-glow); }
         button:hover { background: #059669; transform: translateY(-2px); }
         button:disabled { background: #94a3b8; cursor: not-allowed; box-shadow: none; transform: none; }
@@ -281,7 +282,7 @@ const htmlContent = `
             
             <div class="step-container">
                 <div class="step-title"><span class="step-badge">1</span> 获取链接</div>
-                <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">用B站移动端APP打开个性装扮，进入想要下载的数字周边，点击右上角分享获取链接。</p>
+                <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">用B站移动端APP打开<a href="bilibili://forward?-Btarget=https%3A%2F%2Fwww.bilibili.com%2Fh5%2Fmall%2Fhome%3Fnavhide%3D1" >个性装扮(点我即达)</a>，进入想要下载的数字周边，点击右上角分享获取链接。</p>
                 <textarea id="filepath" rows="4" placeholder="在此处粘贴分享URL，例如：https://www.bilibili.com/h5/mall/..."></textarea>
                 <div style="margin-top: 10px; text-align: right;">
                     <button id="fetch-btn" onclick="getData()">一键智能解析</button>
