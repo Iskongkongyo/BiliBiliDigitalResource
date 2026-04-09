@@ -121,13 +121,6 @@ export default {
         // ==========================================
         // 路由逻辑
         // ==========================================
-        if (url.pathname === '/api/basic') {
-            const actId = url.searchParams.get('act_id');
-            const target = `https://api.bilibili.com/x/vas/dlc_act/act/basic?act_id=${actId}&csrf=`;
-            const res = await fetch(target);
-            return new Response(res.body, { headers: { 'Content-Type': 'application/json;charset=UTF-8' } });
-        }
-
         if (url.pathname === '/api/detail') {
             const actId = url.searchParams.get('act_id');
             const lotteryId = url.searchParams.get('lottery_id');
@@ -348,22 +341,15 @@ const htmlContent = `
             const filepath = document.getElementById('filepath').value.trim();
             if (!filepath) { alert("URL路径不能为空！"); return; }
             const id = getParam(filepath, 'act_id') || getParam(filepath, 'id');
-            if (!id) { alert("URL路径有误，未找到 act_id 或 id，请检查！"); return; }
-
-            const btn = document.getElementById('fetch-btn');
+            if (!id) { alert('未找到有效 act_id 或 id，请检查URL连接！'); return; }
+            const lotteryId = getParam(filepath, 'lottery_id');
+            if (!lotteryId) { alert('未找到有效 lottery_id，请检查URL连接！'); return; }
+           const btn = document.getElementById('fetch-btn');
             const originalBtnText = btn.innerText;
             btn.innerText = "正在获取安全令牌与数据...";
             btn.disabled = true;
-
-            try {
-                const basicRes = await fetch(\`/api/basic?act_id=\${id}\`);
-                if (!basicRes.ok) throw new Error("基础接口请求失败");
-                const basicData = await basicRes.json();
-                const lotteryId = basicData?.data?.tab_lottery_id || basicData?.data?.lottery_list?.[0]?.lottery_id;
-                if (!lotteryId) throw new Error("未找到有效的 lottery_id");
-
-                console.log("拉取详情并获取授权 Cookie...");
-                const detailRes = await fetch(\`/api/detail?act_id=\${id}&lottery_id=\${lotteryId}\`);
+            try { 
+                 const detailRes = await fetch(\`/api/detail?act_id=\${id}&lottery_id=\${lotteryId}\`);
                 if (!detailRes.ok) throw new Error("详情接口请求失败");
                 const detailData = await detailRes.json();
 

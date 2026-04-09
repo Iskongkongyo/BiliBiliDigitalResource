@@ -312,22 +312,9 @@
             btn.innerText = "正在通过代理获取数据...";
             btn.disabled = true;
 
-            let lotteryId;
+             const lotteryId = getParam(filepath, 'lottery_id');
 
-            try {
-                // 这里基础接口由于比较快，直接用普通 fetch 即可
-                const basicRes = await fetch(`https://api.codetabs.com/v1/proxy?quest=https://api.bilibili.com/x/vas/dlc_act/act/basic?act_id=${id}&csrf=`);
-                if (!basicRes.ok) throw new Error("基础接口请求失败");
-                const basicData = await basicRes.json();
-                
-                lotteryId = basicData?.data?.tab_lottery_id || basicData?.data?.lottery_list?.[0]?.lottery_id;
-                if (!lotteryId) throw new Error("未找到有效的 lottery_id");
-            } catch (err) {
-                alert(`获取作品 lottery_id 失败：${err.message}。请检查链接或稍后重试！`);
-                btn.innerText = originalBtnText;
-                btn.disabled = false;
-                return; 
-            }
+             if (!lotteryId) { alert("未找到有效 lottery_id，请检查URL链接！"); return; }
 
             const targetUrl = `https://api.bilibili.com/x/vas/dlc_act/lottery_home_detail?act_id=${id}&appkey=1d8b6e7d45233436&disable_rcmd=0&sign=341070dd7b86b7ce7c3655972d9824a7&lottery_id=${lotteryId}&ts=${Math.floor(Date.now()/1000)}&mobi_app=android&platform=android`;
             let detailData = null;

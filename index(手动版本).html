@@ -226,19 +226,6 @@
                 <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">用B站移动端APP打开<a href="bilibili://forward?-Btarget=https%3A%2F%2Fwww.bilibili.com%2Fh5%2Fmall%2Fhome%3Fnavhide%3D1" >个性装扮(点我即达)</a>，进入想要下载的数字周边，点击右上角分享获取链接（建议分享到QQ复制链接）。</p>
                 <textarea id="filepath" rows="4" placeholder="在此处粘贴分享URL，例如：https://www.bilibili.com/h5/mall/..."></textarea>
                 <div style="margin-top: 10px; text-align: right;">
-                    <button onclick="openBasicApi()">打开基础接口</button>
-                </div>
-            </div>
-
-            <div class="step-container">
-                <div class="step-title">
-                    <span class="step-badge">2</span> 获取数字周边信息
-                </div>
-                <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">
-                    点击下方按钮打开基础信息接口，复制全部 JSON 粘贴到此处，然后点击“解析并打开媒体接口”。
-                </p>
-                <textarea id="basic-data" rows="6" placeholder="在此处粘贴基础接口 JSON 数据..."></textarea>
-                <div style="margin-top: 10px; text-align: right;">
                     <button onclick="openDetailApi()">解析并打开媒体接口</button>
                 </div>
             </div>
@@ -312,43 +299,23 @@
             }
         }
 
-        function openBasicApi() {
-            const filepath = document.getElementById('filepath').value.trim();
 
-            if (!filepath) {
+        function openDetailApi() {
+            try {
+                 const filepath = document.getElementById('filepath').value.trim();
+
+                if (!filepath) {
                 alert("URL路径不能为空！");
                 return;
             }
 
-            const id = getParam(filepath, 'act_id') || getParam(filepath, 'id');
+                const lotteryId = getParam(filepath, 'lottery_id');
 
-            if (!id) {
-                alert("URL路径有误，未找到 act_id 或 id！");
-                return;
-            }
+                if (!lotteryId) throw new Error("未找到有效 lottery_id，请检查URL链接！");
 
-            const basicUrl =
-                `https://api.bilibili.com/x/vas/dlc_act/act/basic?act_id=${id}&csrf=`;
+                const id = getParam(filepath, 'act_id')  || getParam(filepath, 'id');
 
-            alert("即将打开基础信息接口，请复制页面全部 JSON 并粘贴到第二步！");
-            window.open(basicUrl, '_blank');
-        }
-
-        function openDetailApi() {
-            try {
-                const basicDataText = document.getElementById('basic-data').value.trim();
-                if (!basicDataText) throw new Error("基础 JSON 不能为空！");
-
-                const basicJson = JSON.parse(basicDataText);
-
-                const lotteryId =
-                    basicJson?.data?.tab_lottery_id ||
-                    basicJson?.data?.lottery_list?.[0]?.lottery_id;
-
-                if (!lotteryId) throw new Error("未找到有效 lottery_id");
-
-                const filepath = document.getElementById('filepath').value.trim();
-                const id = getParam(filepath, 'act_id') || getParam(filepath, 'id');
+                if (!id) throw new Error('未找到有效 act_id 或 id，请检查URL链接！');
 
                 const detailUrl =
                     `https://api.bilibili.com/x/vas/dlc_act/lottery_home_detail?act_id=${id}` +
@@ -359,7 +326,7 @@
                     `&ts=${Math.floor(Date.now()/1000)}` +
                     `&mobi_app=android&platform=android`;
 
-                alert("即将打开媒体数据接口，请复制页面全部 JSON 并粘贴到第三步！");
+                alert("即将打开媒体数据接口，请复制页面全部 JSON 并粘贴到第二步！");
                 window.open(detailUrl, '_blank');
 
             } catch (err) {
