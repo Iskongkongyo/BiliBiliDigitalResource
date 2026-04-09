@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>B站数字周边提取工具</title>
+    <style>
+        /* 纯白亮色主题与青绿色配色 */
+        :root {
+            --primary: #10b981;
+            --primary-glow: rgba(16, 185, 129, 0.3);
+            --bg-color: #ffffff;
+            --panel-bg: #ffffff;
+            --text-main: #1f2937;
+            --text-muted: #6b7280;
+            --border-color: #e5e7eb;
+            --border-radius: 12px;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            margin: auto;
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            padding: 30px;
+            border-radius: var(--border-radius);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+            margin-bottom: 24px;
+            border: 1px solid var(--border-color);
+        }
+
+        h1,
+        h2 {
+            color: var(--text-main);
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* Github Icon Hover Effect */
+        .github-icon {
+            color: var(--text-main);
+            transition: color 0.3s ease, filter 0.3s ease;
+            display: flex;
+            align-items: center;
+        }
+
+        .github-icon:hover {
+            color: var(--primary);
+            filter: drop-shadow(0 0 8px var(--primary-glow));
+        }
+
+        .step-container {
+            margin-bottom: 24px;
+        }
+
+        .step-title {
+            font-size: 1.1em;
+            font-weight: bold;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--primary);
+        }
+
+        .step-badge {
+            background: var(--primary);
+            color: #fff;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 14px;
+            box-shadow: 0 0 8px var(--primary-glow);
+        }
+
+        textarea {
+            width: 100%;
+            box-sizing: border-box;
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 15px;
+            border-radius: 8px;
+            resize: vertical;
+            font-family: monospace;
+            transition: all 0.3s;
+        }
+
+        textarea:focus {
+            border-color: var(--primary);
+            outline: none;
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+        a {
+            text-decoration: none;
+            color: #1CBD87;
+            font-weight: bold;
+        }
+
+        button {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 15px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px var(--primary-glow);
+        }
+
+        button:hover {
+            background: #059669;
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+
+        #videos-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .media-card {
+            background: #ffffff;
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border: 1px solid var(--border-color);
+            transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
+        }
+
+        .media-card:hover {
+            transform: scale(1.02);
+            border-color: var(--primary);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        .media-card video,
+        .media-card img {
+            width: 100%;
+            height: 380px;
+            object-fit: cover;
+            background: #f3f4f6;
+        }
+
+        /* 新增：修复视频全屏时被裁剪的问题 */
+        .media-card video:fullscreen {
+            object-fit: contain;
+            background: #000;
+        }
+
+        .media-card video:-webkit-full-screen {
+            object-fit: contain;
+            background: #000;
+        }
+
+        .media-card video:-moz-full-screen {
+            object-fit: contain;
+            background: #000;
+        }
+
+        .media-card .title {
+            padding: 12px;
+            font-size: 0.9em;
+            text-align: center;
+            color: var(--text-muted);
+            width: 100%;
+            box-sizing: border-box;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            background: #ffffff;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .progress-wrapper {
+            display: none;
+            margin: 20px 0;
+            background: #ffffff;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        progress {
+            width: 100%;
+            height: 12px;
+            border-radius: 6px;
+            appearance: none;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        progress::-webkit-progress-bar {
+            background-color: #f1f5f9;
+        }
+
+        progress::-webkit-progress-value {
+            background-color: var(--primary);
+        }
+
+        #progressText {
+            color: var(--primary);
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="panel">
+            <h1>
+                B站数字周边提取工具
+                <a href="https://github.com/Iskongkongyo" target="_blank" class="github-icon" title="访问我的 GitHub 主页">
+                    <svg height="28" width="28" viewBox="0 0 16 16" fill="currentColor">
+                        <path
+                            d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z">
+                        </path>
+                    </svg>
+                </a>
+            </h1>
+
+            <div class="step-container">
+                <div class="step-title"><span class="step-badge">1</span> 获取链接</div>
+                <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">用B站移动端APP打开<a
+                        href="bilibili://forward?-Btarget=https%3A%2F%2Fwww.bilibili.com%2Fh5%2Fmall%2Fhome%3Fnavhide%3D1">个性装扮(点我即达)</a>，进入想要下载的数字周边，点击右上角分享获取链接（建议分享到QQ复制链接）。
+                </p>
+                <textarea id="filepath" rows="4"
+                    placeholder="在此处粘贴分享URL，例如：https://www.bilibili.com/h5/mall/..."></textarea>
+                <div style="margin-top: 10px; text-align: right;">
+                    <button onclick="openBasicApi()">打开基础接口</button>
+                </div>
+            </div>
+
+            <div class="step-container">
+                <div class="step-title">
+                    <span class="step-badge">2</span> 获取数字周边信息
+                </div>
+                <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">
+                    点击下方按钮打开基础信息接口，复制全部 JSON 粘贴到此处，然后点击“解析并打开媒体接口”。
+                </p>
+                <textarea id="basic-data" rows="6" placeholder="在此处粘贴基础接口 JSON 数据..."></textarea>
+                <div style="margin-top: 10px; text-align: right;">
+                    <button onclick="openDetailApi()">解析并打开媒体接口</button>
+                </div>
+            </div>
+
+            <div class="step-container">
+                <div class="step-title"><span class="step-badge">3</span> 获取媒体数据</div>
+                <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">在上一步弹出的新窗口中，复制页面所有的 JSON
+                    文本，粘贴到下方，然后点击“渲染视频与图片”。</p>
+                <textarea id="data" rows="6" placeholder="在此处粘贴刚刚打开的网页中的 JSON 数据..."></textarea>
+                <div style="margin-top: 10px; text-align: right;">
+                    <button onclick="getVideos()">渲染视频与图片</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="result-panel" class="panel" style="display: none;">
+            <h2 id="result-title">提取结果
+                <button id="download-btn" onclick="downloadFilesAsZip()">打包下载全部</button>
+            </h2>
+
+            <div id="progress-container" class="progress-wrapper">
+                <progress id="download-progress" max="100" value="0"></progress>
+                <div id="progressText">准备下载...</div>
+            </div>
+
+            <div id="videos-grid"></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+    <script>
+        let zipName = '数字周边';
+        let fileUrls = [];
+        let fileNames = [];
+        let isDownloading = false;
+
+        function getParam(url, param) {
+            try {
+                const handelUrl = new URL(url);
+                return handelUrl.searchParams.get(param);
+            } catch (e) {
+                return null;
+            }
+        }
+
+        // 带超时 + 重试机制的 fetch
+        async function fetchWithRetry(url, options = {}, retries = 3, timeoutMs = 20000) {
+            for (let i = 0; i < retries; i++) {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+                try {
+                    const response = await fetch(url, { ...options, signal: controller.signal });
+                    clearTimeout(timeoutId);
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP 错误: ${response.status}`);
+                    }
+
+                    return response;
+                } catch (error) {
+                    clearTimeout(timeoutId);
+
+                    if (i === retries - 1) {
+                        throw new Error(`请求失败，已重试 ${retries} 次: ${error.message}`);
+                    }
+
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            }
+        }
+
+        function openBasicApi() {
+            const filepath = document.getElementById('filepath').value.trim();
+
+            if (!filepath) {
+                alert("URL路径不能为空！");
+                return;
+            }
+
+            const id = getParam(filepath, 'act_id') || getParam(filepath, 'id');
+
+            if (!id) {
+                alert("URL路径有误，未找到 act_id 或 id！");
+                return;
+            }
+
+            const lotteryId = getParam(filepath, 'lottery_id');
+
+            if (lotteryId != 'undefined' && lotteryId != 'null' && lotteryId) {
+                openDetailApi(lotteryId);
+                return;
+            }
+
+            const basicUrl =
+                `https://api.bilibili.com/x/vas/dlc_act/act/basic?act_id=${id}&csrf=`;
+
+            alert("即将打开基础信息接口，请复制页面全部 JSON 并粘贴到第二步！");
+            window.open(basicUrl, '_blank');
+        }
+
+        function openDetailApi(LotteryId = null) {
+            try {
+                if (!LotteryId) {
+
+                    const basicDataText = document.getElementById('basic-data').value.trim();
+                    if (!basicDataText) throw new Error("基础 JSON 不能为空！");
+
+                    const basicJson = JSON.parse(basicDataText);
+
+                    LotteryId =
+                        basicJson?.data?.tab_lottery_id ||
+                        basicJson?.data?.lottery_list?.[0]?.lottery_id;
+
+                    if (!LotteryId) throw new Error("未找到有效 lottery_id！");
+
+                }
+
+                const filepath = document.getElementById('filepath').value.trim();
+                const id = getParam(filepath, 'act_id') || getParam(filepath, 'id');
+
+                const detailUrl =
+                    `https://api.bilibili.com/x/vas/dlc_act/lottery_home_detail?act_id=${id}` +
+                    `&appkey=1d8b6e7d45233436` +
+                    `&disable_rcmd=0` +
+                    `&sign=341070dd7b86b7ce7c3655972d9824a7` +
+                    `&lottery_id=${LotteryId}` +
+                    `&ts=${Math.floor(Date.now() / 1000)}` +
+                    `&mobi_app=android&platform=android`;
+
+                alert("即将打开媒体数据接口，请复制页面全部 JSON 并粘贴到第三步！");
+                window.open(detailUrl, '_blank');
+
+            } catch (err) {
+                alert("解析基础数据失败：" + err.message);
+            }
+        }
+
+        function getVideos() {
+            try {
+                const data = document.getElementById('data').value.trim();
+                if (!data) throw new Error('JSON 数据不能为空！');
+
+                const jsonData = JSON.parse(data);
+                const infos = jsonData.data;
+                zipName = infos.name || '数字周边';
+
+                document.getElementById('result-panel').style.display = 'block';
+                document.getElementById('result-title').childNodes[0].nodeValue = `${zipName} `;
+
+                const collectChain = infos.collect_list?.collect_chain;
+                if (collectChain) {
+                    if (collectChain[0]?.redeem_item_name === "钻石头像背景") {
+                        infos.item_list.push({ card_info: { card_name: collectChain[0].redeem_item_name, card_img: collectChain[0].redeem_item_image } });
+                    }
+                    if (collectChain[1]?.redeem_item_name?.endsWith("表情包")) {
+                        infos.item_list.push({ card_info: { card_name: collectChain[1].redeem_item_name, card_img: collectChain[1].redeem_item_image } });
+                    }
+                }
+
+                const collectInfos = infos.collect_list?.collect_infos;
+                if (collectInfos?.length > 0) {
+                    collectInfos.forEach(item => {
+                        if (item?.redeem_item_name && (item.redeem_item_name.endsWith("表情包") || item.redeem_item_name.endsWith("动态表情包"))) {
+                            infos.item_list.push({ card_info: { card_name: item.redeem_item_name, card_img: item.redeem_item_image } });
+                        }
+                    });
+                }
+
+                renderGrid(infos.item_list);
+            } catch (err) {
+                alert(`解析数据出错，请确保输入的是完整的 JSON 格式：${err.message}`);
+            }
+        }
+
+        function renderGrid(itemList) {
+            const grid = document.getElementById('videos-grid');
+            grid.innerHTML = '';
+            fileUrls = [];
+            fileNames = [];
+
+            itemList.forEach((item, index) => {
+                if (!item?.card_info) return;
+
+                const cardInfo = item.card_info;
+                const videoUrl = cardInfo.video_list?.[0];
+                const imgUrl = cardInfo.card_img;
+
+                if (!videoUrl && !imgUrl) return;
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'media-card';
+
+                const title = document.createElement('div');
+                title.className = 'title';
+                title.innerText = cardInfo.card_name || `未命名素材 ${index + 1}`;
+
+                if (videoUrl) {
+                    const video = document.createElement('video');
+                    video.src = videoUrl;
+                    video.controls = true;
+                    video.preload = 'metadata';
+                    wrapper.appendChild(video);
+                    fileUrls.push(videoUrl);
+                } else if (imgUrl) {
+                    const img = document.createElement('img');
+                    img.src = imgUrl;
+                    img.alt = title.innerText;
+                    wrapper.appendChild(img);
+                    fileUrls.push(imgUrl);
+                }
+
+                fileNames.push(title.innerText);
+                wrapper.appendChild(title);
+                grid.appendChild(wrapper);
+            });
+        }
+
+        async function downloadFilesAsZip() {
+            if (fileUrls.length === 0) {
+                alert('没有找到可以下载的资源文件！');
+                return;
+            }
+
+            if (isDownloading) {
+                alert('正在下载中，请稍后再试！频繁下载可能触发风控。');
+                return;
+            }
+
+            // ⭐⭐⭐ 创建下载快照
+            const targetUrls = [...fileUrls];
+            const targetNames = [...fileNames];
+            const targetZipName = zipName;
+
+            // ⭐ 智能去重命名逻辑
+            const nameOccurrenceMap = {};
+            const finalFileNames = targetNames.map(name => {
+                let safeName = name.replace(/[\\/:*?"<>|]/g, '');
+                if (nameOccurrenceMap[safeName] !== undefined) {
+                    nameOccurrenceMap[safeName]++;
+                    return `${safeName}_${nameOccurrenceMap[safeName]}`;
+                } else {
+                    nameOccurrenceMap[safeName] = 0;
+                    return safeName;
+                }
+            });
+
+            const progressContainer = document.getElementById('progress-container');
+            const progressBar = document.getElementById('download-progress');
+            const progressText = document.getElementById('progressText');
+            const downloadBtn = document.getElementById('download-btn');
+
+            isDownloading = true;
+            progressContainer.style.display = 'block';
+            downloadBtn.disabled = true;
+
+            const zip = new JSZip();
+            let downloadedCount = 0;
+
+            const promises = targetUrls.map(async (url, index) => {
+                try {
+                    // ⭐ 使用带超时 + 重试的 fetch
+                    const response = await fetchWithRetry(url, {}, 3, 20000);
+                    const blob = await response.blob();
+
+                    const urlObj = new URL(url);
+                    const match = urlObj.pathname.match(/\.[a-zA-Z0-9]{2,}$/i);
+                    const ext = match ? match[0] : (blob.type.includes('video') ? '.mp4' : '.jpg');
+
+                    // ⭐ 使用去重后的名字
+                    const fileName = `${finalFileNames[index]}${ext}`;
+                    zip.file(fileName, blob);
+
+                    downloadedCount++;
+                    const percent = Math.floor((downloadedCount / targetUrls.length) * 100);
+                    progressBar.value = percent;
+                    progressText.innerText =
+                        `正在下载 [${targetZipName}]... 进度 ${percent}% (${downloadedCount}/${targetUrls.length})`;
+
+                } catch (error) {
+                    console.error(`文件下载失败: ${url}`, error);
+
+                    // 失败不阻断整体流程
+                    zip.file(
+                        `下载失败记录_${index}.txt`,
+                        `原链接下载失败: ${url}\n错误信息: ${error.message}`
+                    );
+                }
+            });
+
+            try {
+                await Promise.all(promises);
+
+                progressText.innerText = '下载完成，正在拼命压缩中，请稍候...';
+
+                setTimeout(async () => {
+                    const content = await zip.generateAsync({ type: 'blob' });
+                    saveAs(content, `${targetZipName}.zip`);
+
+                    progressText.innerText = '压缩完毕！文件已保存。';
+
+                    setTimeout(() => {
+                        progressContainer.style.display = 'none';
+                        progressBar.value = 0;
+                        isDownloading = false;
+                        downloadBtn.disabled = false;
+                    }, 3000);
+
+                }, 100);
+
+            } catch (error) {
+                alert(`打包下载失败：${error.message}`);
+                isDownloading = false;
+                downloadBtn.disabled = false;
+            }
+        }
+    </script>
+</body>
+
+</html>
