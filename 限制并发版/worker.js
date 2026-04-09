@@ -254,6 +254,9 @@ const htmlContent = `
         .media-card:hover { transform: scale(1.02); border-color: var(--primary); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
         .media-card video, .media-card img { width: 100%; height: 380px; object-fit: cover; background: #f3f4f6; }
         .media-card video:fullscreen, .media-card video:-webkit-full-screen, .media-card video:-moz-full-screen { object-fit: contain; background: #000; }
+         .media-card video:fullscreen { object-fit: contain; background: #000; }
+        .media-card video:-webkit-full-screen { object-fit: contain; background: #000; }
+        .media-card video:-moz-full-screen { object-fit: contain; background: #000; }
         .media-card .title { padding: 12px; font-size: 0.9em; text-align: center; color: var(--text-muted); width: 100%; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #ffffff; border-top: 1px solid var(--border-color); }
         .progress-wrapper { display: none; margin: 20px 0; background: #ffffff; padding: 15px; border-radius: 8px; border: 1px solid var(--border-color); }
         progress { width: 100%; height: 12px; border-radius: 6px; appearance: none; overflow: hidden; margin-bottom: 8px; }
@@ -358,7 +361,7 @@ const htmlContent = `
                     const basicRes = await fetch(\`/api/basic?act_id=\${id}\`);
                     if (!basicRes.ok) throw new Error('基础接口请求失败');
                     const basicData = await basicRes.json();
-                    const lotteryId = basicData?.data?.tab_lottery_id || basicData?.data?.lottery_list?.[0]?.lottery_id;
+                    lotteryId = basicData?.data?.tab_lottery_id || basicData?.data?.lottery_list?.[0]?.lottery_id;
                     if (!lotteryId) throw new Error('未找到有效的 lottery_id');
                 }
                 const detailRes = await fetch(\`/api/detail?act_id=\${id}&lottery_id=\${lotteryId}\`);
