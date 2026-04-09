@@ -4,7 +4,7 @@
 // 虽然代码这里配置全局变量也能正常运行，但是强烈建议按照下面的方式配置！
 // 在 Cloudflare Worker 面板 -> Settings -> Variables and Secrets 中配置以下变量：
 // 环境变量名：JWT_SECRET, BASIC_USER, BASIC_PASS
-const DEFAULT_SECRET_KEY = "注意：请自行设置密钥内容，长度任意！"; 
+const DEFAULT_SECRET_KEY = "注意：请自行设置密钥内容，长度任意！";
 const DEFAULT_USERNAME = ""; // 留空表示不开启 Basic Auth
 const DEFAULT_PASSWORD = ""; // 留空表示不开启 Basic Auth
 
@@ -56,12 +56,12 @@ async function verifyJWT(token, secret) {
 // ==========================================
 function extractRootDomains(jsonData) {
     const origins = new Set();
-    origins.add('bilibili.com'); 
+    origins.add('bilibili.com');
     origins.add('hdslb.com');
-    
+
     const jsonStr = typeof jsonData === 'string' ? jsonData : JSON.stringify(jsonData);
     const urls = jsonStr.match(/https?:\/\/[a-zA-Z0-9.-]+/g) || [];
-    
+
     urls.forEach(u => {
         try {
             const host = new URL(u).hostname;
@@ -71,9 +71,9 @@ function extractRootDomains(jsonData) {
             } else {
                 origins.add(host);
             }
-        } catch (e) {}
+        } catch (e) { }
     });
-    
+
     return Array.from(origins);
 }
 
@@ -92,7 +92,7 @@ export default {
         if (AUTH_USER && AUTH_PASS) {
             const authHeader = request.headers.get('Authorization');
             const expectedAuth = 'Basic ' + btoa(`${AUTH_USER}:${AUTH_PASS}`);
-            
+
             // 预检请求放行，避免跨域报错
             if (request.method !== 'OPTIONS' && authHeader !== expectedAuth) {
                 return new Response('401 Unauthorized', {
@@ -121,23 +121,30 @@ export default {
         // ==========================================
         // 路由逻辑
         // ==========================================
+        if (url.pathname === '/api/basic') {
+            const actId = url.searchParams.get('act_id');
+            const target = `https://api.bilibili.com/x/vas/dlc_act/act/basic?act_id=${actId}&csrf=`;
+            const res = await fetch(target);
+            return new Response(res.body, { headers: { 'Content-Type': 'application/json;charset=UTF-8' } });
+        }
+
         if (url.pathname === '/api/detail') {
             const actId = url.searchParams.get('act_id');
             const lotteryId = url.searchParams.get('lottery_id');
-            const target = `https://api.bilibili.com/x/vas/dlc_act/lottery_home_detail?act_id=${actId}&appkey=1d8b6e7d45233436&disable_rcmd=0&sign=341070dd7b86b7ce7c3655972d9824a7&lottery_id=${lotteryId}&ts=${Math.floor(Date.now()/1000)}&mobi_app=android&platform=android`;
-            
+            const target = `https://api.bilibili.com/x/vas/dlc_act/lottery_home_detail?act_id=${actId}&appkey=1d8b6e7d45233436&disable_rcmd=0&sign=341070dd7b86b7ce7c3655972d9824a7&lottery_id=${lotteryId}&ts=${Math.floor(Date.now() / 1000)}&mobi_app=android&platform=android`;
+
             try {
                 const res = await fetch(target);
                 const data = await res.json();
-                
+
                 const allowedDomains = extractRootDomains(data);
-                const token = await signJWT({ 
-                    origins: allowedDomains, 
-                    exp: Math.floor(Date.now() / 1000) + (60 * 60 * 2) 
+                const token = await signJWT({
+                    origins: allowedDomains,
+                    exp: Math.floor(Date.now() / 1000) + (60 * 60 * 2)
                 }, SECRET_KEY);
 
                 return new Response(JSON.stringify(data), {
-                    headers: { 
+                    headers: {
                         'Content-Type': 'application/json;charset=UTF-8',
                         'Set-Cookie': `BiliProxyToken=${token}; Path=/; HttpOnly; SameSite=Strict`
                     }
@@ -173,7 +180,7 @@ export default {
                 newHeaders.set('Origin', 'https://www.bilibili.com');
                 newHeaders.set('Referer', 'https://www.bilibili.com/');
                 newHeaders.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-                newHeaders.delete('Cookie'); 
+                newHeaders.delete('Cookie');
                 newHeaders.delete('Authorization'); // 防止 Basic Auth 头部传给目标站
 
                 const proxyRequest = new Request(targetUrl, {
@@ -339,14 +346,21 @@ const htmlContent = `
             const filepath = document.getElementById('filepath').value.trim();
             if (!filepath) { alert('URL路径不能为空！'); return; }
             const id = getParam(filepath, 'act_id') || getParam(filepath, 'id');
-            if (!id) { alert('未找到有效 act_id 或 id，请检查URL连接！'); return; }
-            const lotteryId = getParam(filepath, 'lottery_id');
-            if (!lotteryId) { alert('未找到有效 lottery_id，请检查URL连接！'); return; }
+            if (!id) { alert('未找到有效的 act_id 或 id，请检查URL链接！'); return; }
+            let lotteryId = getParam(filepath, 'lottery_id');
             const btn = document.getElementById('fetch-btn');
             const originalBtnText = btn.innerText;
             btn.innerText = '正在获取安全令牌与数据...';
             btn.disabled = true;
-            try { 
+            try {
+                // 如果没有 lottery_id，尝试从 basic 接口中提取
+                if (!lotteryId || lotteryId == 'undefined' || lotteryId == 'null') {
+                    const basicRes = await fetch(\`/api/basic?act_id=\${id}\`);
+                    if (!basicRes.ok) throw new Error('基础接口请求失败');
+                    const basicData = await basicRes.json();
+                    const lotteryId = basicData?.data?.tab_lottery_id || basicData?.data?.lottery_list?.[0]?.lottery_id;
+                    if (!lotteryId) throw new Error('未找到有效的 lottery_id');
+                }
                 const detailRes = await fetch(\`/api/detail?act_id=\${id}&lottery_id=\${lotteryId}\`);
                 if (!detailRes.ok) throw new Error('详情接口请求失败');
                 const detailData = await detailRes.json();

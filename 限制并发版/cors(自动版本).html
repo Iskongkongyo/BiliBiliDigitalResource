@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -15,6 +16,7 @@
             --border-color: #e5e7eb;
             --border-radius: 12px;
         }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: var(--bg-color);
@@ -28,25 +30,47 @@
             min-height: 100vh;
             box-sizing: border-box;
         }
-        .container { width: 100%; max-width: 1200px; margin: auto; }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            margin: auto;
+        }
+
         .panel {
             background: var(--panel-bg);
             padding: 30px;
             border-radius: var(--border-radius);
-            box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
             margin-bottom: 24px;
             border: 1px solid var(--border-color);
         }
-        h1, h2 {
+
+        h1,
+        h2 {
             color: var(--text-main);
             margin-top: 0;
             display: flex;
             align-items: center;
             justify-content: space-between;
         }
-        .github-icon { color: var(--text-main); transition: color 0.3s ease, filter 0.3s ease; display: flex; align-items: center; }
-        .github-icon:hover { color: var(--primary); filter: drop-shadow(0 0 8px var(--primary-glow)); }
-        .step-container { margin-bottom: 24px; }
+
+        .github-icon {
+            color: var(--text-main);
+            transition: color 0.3s ease, filter 0.3s ease;
+            display: flex;
+            align-items: center;
+        }
+
+        .github-icon:hover {
+            color: var(--primary);
+            filter: drop-shadow(0 0 8px var(--primary-glow));
+        }
+
+        .step-container {
+            margin-bottom: 24px;
+        }
+
         .step-title {
             font-size: 1.1em;
             font-weight: bold;
@@ -56,6 +80,7 @@
             gap: 10px;
             color: var(--primary);
         }
+
         .step-badge {
             background: var(--primary);
             color: #fff;
@@ -68,6 +93,7 @@
             font-size: 14px;
             box-shadow: 0 0 8px var(--primary-glow);
         }
+
         textarea {
             width: 100%;
             box-sizing: border-box;
@@ -80,16 +106,19 @@
             font-family: monospace;
             transition: all 0.3s;
         }
+
         textarea:focus {
             border-color: var(--primary);
             outline: none;
             box-shadow: 0 0 0 3px var(--primary-glow);
         }
+
         a {
-            text-decoration: none; 
-            color: #1CBD87;     
-            font-weight: bold;   
+            text-decoration: none;
+            color: #1CBD87;
+            font-weight: bold;
         }
+
         button {
             background: var(--primary);
             color: #fff;
@@ -102,14 +131,26 @@
             transition: all 0.3s ease;
             box-shadow: 0 4px 12px var(--primary-glow);
         }
-        button:hover { background: #059669; transform: translateY(-2px); }
-        button:disabled { background: #94a3b8; cursor: not-allowed; box-shadow: none; transform: none; }
+
+        button:hover {
+            background: #059669;
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+
         #videos-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
             gap: 20px;
             margin-top: 20px;
         }
+
         .media-card {
             background: #ffffff;
             border-radius: var(--border-radius);
@@ -120,20 +161,28 @@
             border: 1px solid var(--border-color);
             transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
         }
+
         .media-card:hover {
             transform: scale(1.02);
             border-color: var(--primary);
-            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         }
-        .media-card video, .media-card img {
+
+        .media-card video,
+        .media-card img {
             width: 100%;
             height: 380px;
             object-fit: cover;
             background: #f3f4f6;
         }
+
         .media-card video:fullscreen,
         .media-card video:-webkit-full-screen,
-        .media-card video:-moz-full-screen { object-fit: contain; background: #000; }
+        .media-card video:-moz-full-screen {
+            object-fit: contain;
+            background: #000;
+        }
+
         .media-card .title {
             padding: 12px;
             font-size: 0.9em;
@@ -147,6 +196,7 @@
             background: #ffffff;
             border-top: 1px solid var(--border-color);
         }
+
         .progress-wrapper {
             display: none;
             margin: 20px 0;
@@ -155,6 +205,7 @@
             border-radius: 8px;
             border: 1px solid var(--border-color);
         }
+
         progress {
             width: 100%;
             height: 12px;
@@ -163,11 +214,23 @@
             overflow: hidden;
             margin-bottom: 8px;
         }
-        progress::-webkit-progress-bar { background-color: #f1f5f9; }
-        progress::-webkit-progress-value { background-color: var(--primary); }
-        #progressText { color: var(--primary); font-weight: bold; font-size: 0.9em; }
+
+        progress::-webkit-progress-bar {
+            background-color: #f1f5f9;
+        }
+
+        progress::-webkit-progress-value {
+            background-color: var(--primary);
+        }
+
+        #progressText {
+            color: var(--primary);
+            font-weight: bold;
+            font-size: 0.9em;
+        }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="panel">
@@ -175,15 +238,20 @@
                 B站数字周边提取工具
                 <a href="https://github.com/Iskongkongyo" target="_blank" class="github-icon" title="访问我的 GitHub 主页">
                     <svg height="28" width="28" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+                        <path
+                            d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z">
+                        </path>
                     </svg>
                 </a>
             </h1>
 
             <div class="step-container">
                 <div class="step-title"><span class="step-badge">1</span> 获取链接</div>
-                <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">用B站移动端APP打开<a href="bilibili://forward?-Btarget=https%3A%2F%2Fwww.bilibili.com%2Fh5%2Fmall%2Fhome%3Fnavhide%3D1" >个性装扮(点我即达)</a>，进入想要下载的数字周边，点击右上角分享获取链接。</p>
-                <textarea id="filepath" rows="4" placeholder="在此处粘贴分享URL，例如：https://www.bilibili.com/h5/mall/..."></textarea>
+                <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">用B站移动端APP打开<a
+                        href="bilibili://forward?-Btarget=https%3A%2F%2Fwww.bilibili.com%2Fh5%2Fmall%2Fhome%3Fnavhide%3D1">个性装扮(点我即达)</a>，进入想要下载的数字周边，点击右上角分享获取链接。
+                </p>
+                <textarea id="filepath" rows="4"
+                    placeholder="在此处粘贴分享URL，例如：https://www.bilibili.com/h5/mall/..."></textarea>
                 <div style="margin-top: 10px; text-align: right;">
                     <button id="fetch-btn" onclick="getData()">一键智能解析</button>
                 </div>
@@ -191,7 +259,8 @@
 
             <div class="step-container">
                 <div class="step-title"><span class="step-badge">2</span> 获取媒体数据</div>
-                <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">正常情况下系统会自动完成。如果自动解析失败并弹出了新网页，请将网页中的 JSON 数据粘贴到下方并手动点击渲染。</p>
+                <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">
+                    正常情况下系统会自动完成。如果自动解析失败并弹出了新网页，请将网页中的 JSON 数据粘贴到下方并手动点击渲染。</p>
                 <textarea id="data" rows="6" placeholder="正常情况无需手动粘贴..."></textarea>
                 <div style="margin-top: 10px; text-align: right;">
                     <button onclick="getVideos()">渲染视频与图片</button>
@@ -240,7 +309,7 @@
                 const urlObj = new URL(url);
                 const match = urlObj.pathname.match(/\.[a-zA-Z0-9]{2,5}$/i);
                 if (match) return match[0];
-            } catch (e) {}
+            } catch (e) { }
 
             const mime = blob?.type || '';
             if (mime.includes('video/mp4')) return '.mp4';
@@ -275,18 +344,32 @@
             if (!filepath) { alert('URL路径不能为空！'); return; }
 
             const id = getParam(filepath, 'act_id') || getParam(filepath, 'id');
-            if (!id) { alert('未找到有效 act_id 或 id，请检查URL链接！'); return; }
+            if (!id) { alert('未找到有效的 act_id 或 id，请检查URL链接！'); return; }
 
             const btn = document.getElementById('fetch-btn');
             const originalBtnText = btn.innerText;
             btn.innerText = '正在通过代理获取数据...';
             btn.disabled = true;
 
-             const lotteryId = getParam(filepath, 'lottery_id');
+            let lotteryId = getParam(filepath, 'lottery_id');
 
-             if (!lotteryId) { alert("未找到有效 lottery_id，请检查URL链接！"); return; }
+            // 如果没有 lottery_id，尝试从 basic 接口中提取
+            if (!lotteryId || lotteryId == 'undefined' || lotteryId == 'null') {
+                try {
+                    const basicRes = await fetch(`https://api.codetabs.com/v1/proxy?quest=https://api.bilibili.com/x/vas/dlc_act/act/basic?act_id=${id}&csrf=`);
+                    if (!basicRes.ok) throw new Error('基础接口请求失败');
+                    const basicData = await basicRes.json();
+                    lotteryId = basicData?.data?.tab_lottery_id || basicData?.data?.lottery_list?.[0]?.lottery_id;
+                    if (!lotteryId) throw new Error('未找到有效的 lottery_id');
+                } catch (err) {
+                    alert(`获取作品 lottery_id 失败：${err.message}。请检查链接或稍后重试！`);
+                    btn.innerText = originalBtnText;
+                    btn.disabled = false;
+                    return;
+                }
+            }
 
-            const targetUrl = `https://api.bilibili.com/x/vas/dlc_act/lottery_home_detail?act_id=${id}&appkey=1d8b6e7d45233436&disable_rcmd=0&sign=341070dd7b86b7ce7c3655972d9824a7&lottery_id=${lotteryId}&ts=${Math.floor(Date.now()/1000)}&mobi_app=android&platform=android`;
+            const targetUrl = `https://api.bilibili.com/x/vas/dlc_act/lottery_home_detail?act_id=${id}&appkey=1d8b6e7d45233436&disable_rcmd=0&sign=341070dd7b86b7ce7c3655972d9824a7&lottery_id=${lotteryId}&ts=${Math.floor(Date.now() / 1000)}&mobi_app=android&platform=android`;
             let detailData = null;
 
             try {
@@ -494,4 +577,5 @@
         }
     </script>
 </body>
+
 </html>
