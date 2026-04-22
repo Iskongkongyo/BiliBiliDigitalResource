@@ -8,7 +8,7 @@
 
 > [!NOTE]
 >
-> 目前只有最新版里的worker.js支持数字周边文本分享解析！B站数字周边文本分享格式如：“2026DLCSHARE$xxxxxx$ UP主限定皮肤限时领取，【复制】整条消息，打开【哔哩哔哩】领取你的专属卡牌和表情包叭！ 下载地址【 https://www.bilibili.com/】”！
+> 最新版里的worker.js支持数字周边文本分享解析！B站数字周边文本分享格式如：“2026DLCSHARE$xxxxxx$ UP主限定皮肤限时领取，【复制】整条消息，打开【哔哩哔哩】领取你的专属卡牌和表情包叭！ 下载地址【 https://www.bilibili.com/】”！
 
 > [!CAUTION]
 >
@@ -36,7 +36,7 @@
 1. 登录你的 [Cloudflare 控制台](https://dash.cloudflare.com/)。
 2. 在左侧菜单找到 **Workers & Pages**，点击 `Create Application` -> `Create Worker`。
 3. 随便起个炫酷的名字（比如 `bili-extractor`），点击 `Deploy`。
-4. 点击 `Edit code`，把本项目中的 `worker.js` 代码 **全选复制粘贴** 进去，保存并部署。
+4. 点击 `Edit code`，把本项目中的 `最新版/workerPro.js` 代码 **全选复制粘贴** 进去，保存并部署。
 
 ### 第二步：配置环境变量（高能预警 ⚠️）
 
