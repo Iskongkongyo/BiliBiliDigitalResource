@@ -14,678 +14,678 @@ const textEncoder = new TextEncoder();
 // 2. 轻量级 JWT 工具库 (需传入动态 Secret)
 // ==========================================
 async function signJWT(payload, secret) {
-    const header = { alg: 'HS256', typ: 'JWT' };
-    const encodedHeader = btoa(JSON.stringify(header)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-    const encodedPayload = btoa(JSON.stringify(payload)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-    const data = textEncoder.encode(`${encodedHeader}.${encodedPayload}`);
+	const header = { alg: 'HS256', typ: 'JWT' };
+	const encodedHeader = btoa(JSON.stringify(header)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+	const encodedPayload = btoa(JSON.stringify(payload)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+	const data = textEncoder.encode(`${encodedHeader}.${encodedPayload}`);
 
-    const key = await crypto.subtle.importKey(
-        'raw', textEncoder.encode(secret),
-        { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
-    );
-    const signature = await crypto.subtle.sign('HMAC', key, data);
-    const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature))).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+	const key = await crypto.subtle.importKey(
+		'raw', textEncoder.encode(secret),
+		{ name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+	);
+	const signature = await crypto.subtle.sign('HMAC', key, data);
+	const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature))).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
 
-    return `${encodedHeader}.${encodedPayload}.${encodedSignature}`;
+	return `${encodedHeader}.${encodedPayload}.${encodedSignature}`;
 }
 
 async function verifyJWT(token, secret) {
-    try {
-        const parts = token.split('.');
-        if (parts.length !== 3) return null;
-        const [header, payload, signature] = parts;
+	try {
+		const parts = token.split('.');
+		if (parts.length !== 3) return null;
+		const [header, payload, signature] = parts;
 
-        const data = textEncoder.encode(`${header}.${payload}`);
-        const key = await crypto.subtle.importKey(
-            'raw', textEncoder.encode(secret),
-            { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
-        );
+		const data = textEncoder.encode(`${header}.${payload}`);
+		const key = await crypto.subtle.importKey(
+			'raw', textEncoder.encode(secret),
+			{ name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
+		);
 
-        const sigBytes = Uint8Array.from(atob(signature.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
-        const isValid = await crypto.subtle.verify('HMAC', key, sigBytes, data);
+		const sigBytes = Uint8Array.from(atob(signature.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+		const isValid = await crypto.subtle.verify('HMAC', key, sigBytes, data);
 
-        if (!isValid) return null;
-        return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
-    } catch (e) {
-        return null;
-    }
+		if (!isValid) return null;
+		return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+	} catch (e) {
+		return null;
+	}
 }
 
 // ==========================================
 // 3. 辅助函数：提取根域名
 // ==========================================
 function extractRootDomains(jsonData) {
-    const origins = new Set();
-    origins.add('bilibili.com');
-    origins.add('hdslb.com');
+	const origins = new Set();
+	origins.add('bilibili.com');
+	origins.add('hdslb.com');
 
-    const jsonStr = typeof jsonData === 'string' ? jsonData : JSON.stringify(jsonData);
-    const urls = jsonStr.match(/https?:\/\/[a-zA-Z0-9.-]+/g) || [];
+	const jsonStr = typeof jsonData === 'string' ? jsonData : JSON.stringify(jsonData);
+	const urls = jsonStr.match(/https?:\/\/[a-zA-Z0-9.-]+/g) || [];
 
-    urls.forEach(u => {
-        try {
-            const host = new URL(u).hostname;
-            const parts = host.split('.');
-            if (parts.length >= 2) {
-                origins.add(parts.slice(-2).join('.'));
-            } else {
-                origins.add(host);
-            }
-        } catch (e) { }
-    });
+	urls.forEach(u => {
+		try {
+			const host = new URL(u).hostname;
+			const parts = host.split('.');
+			if (parts.length >= 2) {
+				origins.add(parts.slice(-2).join('.'));
+			} else {
+				origins.add(host);
+			}
+		} catch (e) { }
+	});
 
-    return Array.from(origins);
+	return Array.from(origins);
 }
 
 const CLIPBOARD_META_DEFAULTS = Object.freeze({
-    host: 'api.bilibili.com',
-    path: '/x/share/clipboardMeta',
-    appkey: '1d8b6e7d45233436',
-    appsec: '560c52ccd288fed045859ed18bffd973',
-    accessKey: '',
-    build: '8120200',
-    business: '2026DLCSHARE',
-    cLocale: 'zh_CN',
-    channel: 'oppo',
-    disableRcmd: '0',
-    mobiApp: 'android',
-    platform: 'android',
-    sLocale: 'zh_CN',
-    startPattern: '2',
-    statistics: JSON.stringify({ appId: 1, platform: 3, version: '8.12.0', abtest: '' }),
-    buvid: 'XX7BCF57DD53811EBB19C4D5244C9A6AED9B0',
-    fpLocal: 'd6094207a7f1d83699485edeb563ca9e20240905184123a3b2f31a7fecdecbaf',
-    fpRemote: 'd6094207a7f1d83699485edeb563ca9e20240826150753d5975cd4642dd7d626',
-    sessionId: '3075b492',
-    guestid: '23535158781895',
-    appKeyHeader: 'android64',
-    env: 'prod',
-    userAgent: 'Mozilla/5.0 BiliDroid/8.12.0 (bbcallen@gmail.com) os/android model/Nexus 5 mobi_app/android build/8120200 channel/oppo innerVer/8120210 osVer/7.1.2 network/2',
-    httpEngine: 'cronet'
+	host: 'api.bilibili.com',
+	path: '/x/share/clipboardMeta',
+	appkey: '1d8b6e7d45233436',
+	appsec: '560c52ccd288fed045859ed18bffd973',
+	accessKey: '',
+	build: '8120200',
+	business: '2026DLCSHARE',
+	cLocale: 'zh_CN',
+	channel: 'oppo',
+	disableRcmd: '0',
+	mobiApp: 'android',
+	platform: 'android',
+	sLocale: 'zh_CN',
+	startPattern: '2',
+	statistics: JSON.stringify({ appId: 1, platform: 3, version: '8.12.0', abtest: '' }),
+	buvid: 'XX7BCF57DD53811EBB19C4D5244C9A6AED9B0',
+	fpLocal: 'd6094207a7f1d83699485edeb563ca9e20240905184123a3b2f31a7fecdecbaf',
+	fpRemote: 'd6094207a7f1d83699485edeb563ca9e20240826150753d5975cd4642dd7d626',
+	sessionId: '3075b492',
+	guestid: '23535158781895',
+	appKeyHeader: 'android64',
+	env: 'prod',
+	userAgent: 'Mozilla/5.0 BiliDroid/8.12.0 (bbcallen@gmail.com) os/android model/Nexus 5 mobi_app/android build/8120200 channel/oppo innerVer/8120210 osVer/7.1.2 network/2',
+	httpEngine: 'cronet'
 });
 
 function httpError(message, status = 400) {
-    const error = new Error(message);
-    error.statusCode = status;
-    return error;
+	const error = new Error(message);
+	error.statusCode = status;
+	return error;
 }
 
 function jsonResponse(data, init = {}) {
-    const headers = new Headers(init.headers || {});
-    if (!headers.has('Content-Type')) {
-        headers.set('Content-Type', 'application/json;charset=UTF-8');
-    }
-    return new Response(JSON.stringify(data), { ...init, headers });
+	const headers = new Headers(init.headers || {});
+	if (!headers.has('Content-Type')) {
+		headers.set('Content-Type', 'application/json;charset=UTF-8');
+	}
+	return new Response(JSON.stringify(data), { ...init, headers });
 }
 
 function strictEncode(value) {
-    return encodeURIComponent(String(value)).replace(/[!'()*]/g, ch =>
-        `%${ch.charCodeAt(0).toString(16).toUpperCase()}`
-    );
+	return encodeURIComponent(String(value)).replace(/[!'()*]/g, ch =>
+		`%${ch.charCodeAt(0).toString(16).toUpperCase()}`
+	);
 }
 
 function wrapBase64ForAndroid(base64Text) {
-    return `${base64Text.match(/.{1,76}/g)?.join('\n') || ''}\n`;
+	return `${base64Text.match(/.{1,76}/g)?.join('\n') || ''}\n`;
 }
 
 function bytesToBinary(bytes) {
-    let binary = '';
-    const chunkSize = 0x8000;
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-    }
-    return binary;
+	let binary = '';
+	const chunkSize = 0x8000;
+	for (let i = 0; i < bytes.length; i += chunkSize) {
+		binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+	}
+	return binary;
 }
 
 function bytesToBase64(bytes) {
-    return btoa(bytesToBinary(bytes));
+	return btoa(bytesToBinary(bytes));
 }
 
 function generateTraceId() {
-    const bytes = new Uint8Array(16);
-    crypto.getRandomValues(bytes);
-    const full = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
-    return `${full}:${full.slice(-16)}:0:0`;
+	const bytes = new Uint8Array(16);
+	crypto.getRandomValues(bytes);
+	const full = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+	return `${full}:${full.slice(-16)}:0:0`;
 }
 
 function safeAdd(x, y) {
-    const lsw = (x & 0xffff) + (y & 0xffff);
-    const msw = (x >>> 16) + (y >>> 16) + (lsw >>> 16);
-    return (msw << 16) | (lsw & 0xffff);
+	const lsw = (x & 0xffff) + (y & 0xffff);
+	const msw = (x >>> 16) + (y >>> 16) + (lsw >>> 16);
+	return (msw << 16) | (lsw & 0xffff);
 }
 
 function bitRotateLeft(num, cnt) {
-    return (num << cnt) | (num >>> (32 - cnt));
+	return (num << cnt) | (num >>> (32 - cnt));
 }
 
 function md5Cmn(q, a, b, x, s, t) {
-    return safeAdd(bitRotateLeft(safeAdd(safeAdd(a, q), safeAdd(x, t)), s), b);
+	return safeAdd(bitRotateLeft(safeAdd(safeAdd(a, q), safeAdd(x, t)), s), b);
 }
 
 function md5Ff(a, b, c, d, x, s, t) {
-    return md5Cmn((b & c) | (~b & d), a, b, x, s, t);
+	return md5Cmn((b & c) | (~b & d), a, b, x, s, t);
 }
 
 function md5Gg(a, b, c, d, x, s, t) {
-    return md5Cmn((b & d) | (c & ~d), a, b, x, s, t);
+	return md5Cmn((b & d) | (c & ~d), a, b, x, s, t);
 }
 
 function md5Hh(a, b, c, d, x, s, t) {
-    return md5Cmn(b ^ c ^ d, a, b, x, s, t);
+	return md5Cmn(b ^ c ^ d, a, b, x, s, t);
 }
 
 function md5Ii(a, b, c, d, x, s, t) {
-    return md5Cmn(c ^ (b | ~d), a, b, x, s, t);
+	return md5Cmn(c ^ (b | ~d), a, b, x, s, t);
 }
 
 function binlMd5(words, bitLength) {
-    words[bitLength >> 5] |= 0x80 << (bitLength % 32);
-    words[(((bitLength + 64) >>> 9) << 4) + 14] = bitLength;
+	words[bitLength >> 5] |= 0x80 << (bitLength % 32);
+	words[(((bitLength + 64) >>> 9) << 4) + 14] = bitLength;
 
-    let a = 1732584193;
-    let b = -271733879;
-    let c = -1732584194;
-    let d = 271733878;
+	let a = 1732584193;
+	let b = -271733879;
+	let c = -1732584194;
+	let d = 271733878;
 
-    for (let i = 0; i < words.length; i += 16) {
-        const oldA = a;
-        const oldB = b;
-        const oldC = c;
-        const oldD = d;
+	for (let i = 0; i < words.length; i += 16) {
+		const oldA = a;
+		const oldB = b;
+		const oldC = c;
+		const oldD = d;
 
-        a = md5Ff(a, b, c, d, words[i + 0], 7, -680876936);
-        d = md5Ff(d, a, b, c, words[i + 1], 12, -389564586);
-        c = md5Ff(c, d, a, b, words[i + 2], 17, 606105819);
-        b = md5Ff(b, c, d, a, words[i + 3], 22, -1044525330);
-        a = md5Ff(a, b, c, d, words[i + 4], 7, -176418897);
-        d = md5Ff(d, a, b, c, words[i + 5], 12, 1200080426);
-        c = md5Ff(c, d, a, b, words[i + 6], 17, -1473231341);
-        b = md5Ff(b, c, d, a, words[i + 7], 22, -45705983);
-        a = md5Ff(a, b, c, d, words[i + 8], 7, 1770035416);
-        d = md5Ff(d, a, b, c, words[i + 9], 12, -1958414417);
-        c = md5Ff(c, d, a, b, words[i + 10], 17, -42063);
-        b = md5Ff(b, c, d, a, words[i + 11], 22, -1990404162);
-        a = md5Ff(a, b, c, d, words[i + 12], 7, 1804603682);
-        d = md5Ff(d, a, b, c, words[i + 13], 12, -40341101);
-        c = md5Ff(c, d, a, b, words[i + 14], 17, -1502002290);
-        b = md5Ff(b, c, d, a, words[i + 15], 22, 1236535329);
+		a = md5Ff(a, b, c, d, words[i + 0], 7, -680876936);
+		d = md5Ff(d, a, b, c, words[i + 1], 12, -389564586);
+		c = md5Ff(c, d, a, b, words[i + 2], 17, 606105819);
+		b = md5Ff(b, c, d, a, words[i + 3], 22, -1044525330);
+		a = md5Ff(a, b, c, d, words[i + 4], 7, -176418897);
+		d = md5Ff(d, a, b, c, words[i + 5], 12, 1200080426);
+		c = md5Ff(c, d, a, b, words[i + 6], 17, -1473231341);
+		b = md5Ff(b, c, d, a, words[i + 7], 22, -45705983);
+		a = md5Ff(a, b, c, d, words[i + 8], 7, 1770035416);
+		d = md5Ff(d, a, b, c, words[i + 9], 12, -1958414417);
+		c = md5Ff(c, d, a, b, words[i + 10], 17, -42063);
+		b = md5Ff(b, c, d, a, words[i + 11], 22, -1990404162);
+		a = md5Ff(a, b, c, d, words[i + 12], 7, 1804603682);
+		d = md5Ff(d, a, b, c, words[i + 13], 12, -40341101);
+		c = md5Ff(c, d, a, b, words[i + 14], 17, -1502002290);
+		b = md5Ff(b, c, d, a, words[i + 15], 22, 1236535329);
 
-        a = md5Gg(a, b, c, d, words[i + 1], 5, -165796510);
-        d = md5Gg(d, a, b, c, words[i + 6], 9, -1069501632);
-        c = md5Gg(c, d, a, b, words[i + 11], 14, 643717713);
-        b = md5Gg(b, c, d, a, words[i + 0], 20, -373897302);
-        a = md5Gg(a, b, c, d, words[i + 5], 5, -701558691);
-        d = md5Gg(d, a, b, c, words[i + 10], 9, 38016083);
-        c = md5Gg(c, d, a, b, words[i + 15], 14, -660478335);
-        b = md5Gg(b, c, d, a, words[i + 4], 20, -405537848);
-        a = md5Gg(a, b, c, d, words[i + 9], 5, 568446438);
-        d = md5Gg(d, a, b, c, words[i + 14], 9, -1019803690);
-        c = md5Gg(c, d, a, b, words[i + 3], 14, -187363961);
-        b = md5Gg(b, c, d, a, words[i + 8], 20, 1163531501);
-        a = md5Gg(a, b, c, d, words[i + 13], 5, -1444681467);
-        d = md5Gg(d, a, b, c, words[i + 2], 9, -51403784);
-        c = md5Gg(c, d, a, b, words[i + 7], 14, 1735328473);
-        b = md5Gg(b, c, d, a, words[i + 12], 20, -1926607734);
+		a = md5Gg(a, b, c, d, words[i + 1], 5, -165796510);
+		d = md5Gg(d, a, b, c, words[i + 6], 9, -1069501632);
+		c = md5Gg(c, d, a, b, words[i + 11], 14, 643717713);
+		b = md5Gg(b, c, d, a, words[i + 0], 20, -373897302);
+		a = md5Gg(a, b, c, d, words[i + 5], 5, -701558691);
+		d = md5Gg(d, a, b, c, words[i + 10], 9, 38016083);
+		c = md5Gg(c, d, a, b, words[i + 15], 14, -660478335);
+		b = md5Gg(b, c, d, a, words[i + 4], 20, -405537848);
+		a = md5Gg(a, b, c, d, words[i + 9], 5, 568446438);
+		d = md5Gg(d, a, b, c, words[i + 14], 9, -1019803690);
+		c = md5Gg(c, d, a, b, words[i + 3], 14, -187363961);
+		b = md5Gg(b, c, d, a, words[i + 8], 20, 1163531501);
+		a = md5Gg(a, b, c, d, words[i + 13], 5, -1444681467);
+		d = md5Gg(d, a, b, c, words[i + 2], 9, -51403784);
+		c = md5Gg(c, d, a, b, words[i + 7], 14, 1735328473);
+		b = md5Gg(b, c, d, a, words[i + 12], 20, -1926607734);
 
-        a = md5Hh(a, b, c, d, words[i + 5], 4, -378558);
-        d = md5Hh(d, a, b, c, words[i + 8], 11, -2022574463);
-        c = md5Hh(c, d, a, b, words[i + 11], 16, 1839030562);
-        b = md5Hh(b, c, d, a, words[i + 14], 23, -35309556);
-        a = md5Hh(a, b, c, d, words[i + 1], 4, -1530992060);
-        d = md5Hh(d, a, b, c, words[i + 4], 11, 1272893353);
-        c = md5Hh(c, d, a, b, words[i + 7], 16, -155497632);
-        b = md5Hh(b, c, d, a, words[i + 10], 23, -1094730640);
-        a = md5Hh(a, b, c, d, words[i + 13], 4, 681279174);
-        d = md5Hh(d, a, b, c, words[i + 0], 11, -358537222);
-        c = md5Hh(c, d, a, b, words[i + 3], 16, -722521979);
-        b = md5Hh(b, c, d, a, words[i + 6], 23, 76029189);
-        a = md5Hh(a, b, c, d, words[i + 9], 4, -640364487);
-        d = md5Hh(d, a, b, c, words[i + 12], 11, -421815835);
-        c = md5Hh(c, d, a, b, words[i + 15], 16, 530742520);
-        b = md5Hh(b, c, d, a, words[i + 2], 23, -995338651);
+		a = md5Hh(a, b, c, d, words[i + 5], 4, -378558);
+		d = md5Hh(d, a, b, c, words[i + 8], 11, -2022574463);
+		c = md5Hh(c, d, a, b, words[i + 11], 16, 1839030562);
+		b = md5Hh(b, c, d, a, words[i + 14], 23, -35309556);
+		a = md5Hh(a, b, c, d, words[i + 1], 4, -1530992060);
+		d = md5Hh(d, a, b, c, words[i + 4], 11, 1272893353);
+		c = md5Hh(c, d, a, b, words[i + 7], 16, -155497632);
+		b = md5Hh(b, c, d, a, words[i + 10], 23, -1094730640);
+		a = md5Hh(a, b, c, d, words[i + 13], 4, 681279174);
+		d = md5Hh(d, a, b, c, words[i + 0], 11, -358537222);
+		c = md5Hh(c, d, a, b, words[i + 3], 16, -722521979);
+		b = md5Hh(b, c, d, a, words[i + 6], 23, 76029189);
+		a = md5Hh(a, b, c, d, words[i + 9], 4, -640364487);
+		d = md5Hh(d, a, b, c, words[i + 12], 11, -421815835);
+		c = md5Hh(c, d, a, b, words[i + 15], 16, 530742520);
+		b = md5Hh(b, c, d, a, words[i + 2], 23, -995338651);
 
-        a = md5Ii(a, b, c, d, words[i + 0], 6, -198630844);
-        d = md5Ii(d, a, b, c, words[i + 7], 10, 1126891415);
-        c = md5Ii(c, d, a, b, words[i + 14], 15, -1416354905);
-        b = md5Ii(b, c, d, a, words[i + 5], 21, -57434055);
-        a = md5Ii(a, b, c, d, words[i + 12], 6, 1700485571);
-        d = md5Ii(d, a, b, c, words[i + 3], 10, -1894986606);
-        c = md5Ii(c, d, a, b, words[i + 10], 15, -1051523);
-        b = md5Ii(b, c, d, a, words[i + 1], 21, -2054922799);
-        a = md5Ii(a, b, c, d, words[i + 8], 6, 1873313359);
-        d = md5Ii(d, a, b, c, words[i + 15], 10, -30611744);
-        c = md5Ii(c, d, a, b, words[i + 6], 15, -1560198380);
-        b = md5Ii(b, c, d, a, words[i + 13], 21, 1309151649);
-        a = md5Ii(a, b, c, d, words[i + 4], 6, -145523070);
-        d = md5Ii(d, a, b, c, words[i + 11], 10, -1120210379);
-        c = md5Ii(c, d, a, b, words[i + 2], 15, 718787259);
-        b = md5Ii(b, c, d, a, words[i + 9], 21, -343485551);
+		a = md5Ii(a, b, c, d, words[i + 0], 6, -198630844);
+		d = md5Ii(d, a, b, c, words[i + 7], 10, 1126891415);
+		c = md5Ii(c, d, a, b, words[i + 14], 15, -1416354905);
+		b = md5Ii(b, c, d, a, words[i + 5], 21, -57434055);
+		a = md5Ii(a, b, c, d, words[i + 12], 6, 1700485571);
+		d = md5Ii(d, a, b, c, words[i + 3], 10, -1894986606);
+		c = md5Ii(c, d, a, b, words[i + 10], 15, -1051523);
+		b = md5Ii(b, c, d, a, words[i + 1], 21, -2054922799);
+		a = md5Ii(a, b, c, d, words[i + 8], 6, 1873313359);
+		d = md5Ii(d, a, b, c, words[i + 15], 10, -30611744);
+		c = md5Ii(c, d, a, b, words[i + 6], 15, -1560198380);
+		b = md5Ii(b, c, d, a, words[i + 13], 21, 1309151649);
+		a = md5Ii(a, b, c, d, words[i + 4], 6, -145523070);
+		d = md5Ii(d, a, b, c, words[i + 11], 10, -1120210379);
+		c = md5Ii(c, d, a, b, words[i + 2], 15, 718787259);
+		b = md5Ii(b, c, d, a, words[i + 9], 21, -343485551);
 
-        a = safeAdd(a, oldA);
-        b = safeAdd(b, oldB);
-        c = safeAdd(c, oldC);
-        d = safeAdd(d, oldD);
-    }
+		a = safeAdd(a, oldA);
+		b = safeAdd(b, oldB);
+		c = safeAdd(c, oldC);
+		d = safeAdd(d, oldD);
+	}
 
-    return [a, b, c, d];
+	return [a, b, c, d];
 }
 
 function bytesToWords(bytes) {
-    const output = new Array(((bytes.length + 3) >> 2)).fill(0);
-    for (let i = 0; i < bytes.length; i++) {
-        output[i >> 2] |= bytes[i] << ((i % 4) * 8);
-    }
-    return output;
+	const output = new Array(((bytes.length + 3) >> 2)).fill(0);
+	for (let i = 0; i < bytes.length; i++) {
+		output[i >> 2] |= bytes[i] << ((i % 4) * 8);
+	}
+	return output;
 }
 
 function wordsToHex(words) {
-    const hex = '0123456789abcdef';
-    let output = '';
-    for (let i = 0; i < words.length * 4; i++) {
-        const value = (words[i >> 2] >> ((i % 4) * 8)) & 0xff;
-        output += hex[(value >>> 4) & 0x0f] + hex[value & 0x0f];
-    }
-    return output;
+	const hex = '0123456789abcdef';
+	let output = '';
+	for (let i = 0; i < words.length * 4; i++) {
+		const value = (words[i >> 2] >> ((i % 4) * 8)) & 0xff;
+		output += hex[(value >>> 4) & 0x0f] + hex[value & 0x0f];
+	}
+	return output;
 }
 
 function md5Hex(text) {
-    const bytes = textEncoder.encode(text);
-    return wordsToHex(binlMd5(bytesToWords(bytes), bytes.length * 8));
+	const bytes = textEncoder.encode(text);
+	return wordsToHex(binlMd5(bytesToWords(bytes), bytes.length * 8));
 }
 
 function extractUrlFromText(input) {
-    const match = String(input || '').match(/https?:\/\/[^\s"'<>]+/i);
-    if (!match) return null;
-    return match[0].replace(/[)\]}>"'.,!?，。！？】》」]+$/u, '');
+	const match = String(input || '').match(/https?:\/\/[^\s"'<>]+/i);
+	if (!match) return null;
+	return match[0].replace(/[)\]}>"'.,!?，。！？】》」]+$/u, '');
 }
 
 function extractActAndLottery(input) {
-    const candidate = extractUrlFromText(input) || String(input || '').trim();
-    try {
-        const parsed = new URL(candidate);
-        const actId = parsed.searchParams.get('act_id') || parsed.searchParams.get('id');
-        const lotteryId = parsed.searchParams.get('lottery_id');
-        if (!actId || !lotteryId) return null;
-        return { actId, lotteryId, resolvedUrl: parsed.toString() };
-    } catch (error) {
-        return null;
-    }
+	const candidate = extractUrlFromText(input) || String(input || '').trim();
+	try {
+		const parsed = new URL(candidate);
+		const actId = parsed.searchParams.get('act_id') || parsed.searchParams.get('id');
+		const lotteryId = parsed.searchParams.get('lottery_id');
+		if (!actId || !lotteryId) return null;
+		return { actId, lotteryId, resolvedUrl: parsed.toString() };
+	} catch (error) {
+		return null;
+	}
 }
 
 function looksLikeClipboardShareText(input) {
-    return /^[A-Za-z0-9]+\$[^$]+\$/.test(String(input || '').trim());
+	return /^[A-Za-z0-9]+\$[^$]+\$/.test(String(input || '').trim());
 }
 
 function getClipboardMetaConfig(env, plaintext) {
-    const buvid = env.BILI_BUVID || CLIPBOARD_META_DEFAULTS.buvid;
-    const businessFromText = String(plaintext || '').split('$')[0]?.trim();
-    const encryptionKey = env.BILI_ENCRYPTION_KEY || buvid.slice(0, 32);
-    const encryptionIv = env.BILI_ENCRYPTION_IV || buvid.slice(0, 16);
+	const buvid = env.BILI_BUVID || CLIPBOARD_META_DEFAULTS.buvid;
+	const businessFromText = String(plaintext || '').split('$')[0]?.trim();
+	const encryptionKey = env.BILI_ENCRYPTION_KEY || buvid.slice(0, 32);
+	const encryptionIv = env.BILI_ENCRYPTION_IV || buvid.slice(0, 16);
 
-    return {
-        host: CLIPBOARD_META_DEFAULTS.host,
-        path: CLIPBOARD_META_DEFAULTS.path,
-        appkey: env.BILI_APPKEY || CLIPBOARD_META_DEFAULTS.appkey,
-        appsec: env.BILI_APPSEC || CLIPBOARD_META_DEFAULTS.appsec,
-        accessKey: env.BILI_ACCESS_KEY || CLIPBOARD_META_DEFAULTS.accessKey,
-        build: env.BILI_BUILD || CLIPBOARD_META_DEFAULTS.build,
-        business: env.BILI_BUSINESS || businessFromText || CLIPBOARD_META_DEFAULTS.business,
-        cLocale: env.BILI_C_LOCALE || CLIPBOARD_META_DEFAULTS.cLocale,
-        channel: env.BILI_CHANNEL || CLIPBOARD_META_DEFAULTS.channel,
-        disableRcmd: env.BILI_DISABLE_RCMD || CLIPBOARD_META_DEFAULTS.disableRcmd,
-        mobiApp: env.BILI_MOBI_APP || CLIPBOARD_META_DEFAULTS.mobiApp,
-        platform: env.BILI_PLATFORM || CLIPBOARD_META_DEFAULTS.platform,
-        sLocale: env.BILI_S_LOCALE || CLIPBOARD_META_DEFAULTS.sLocale,
-        startPattern: env.BILI_START_PATTERN || CLIPBOARD_META_DEFAULTS.startPattern,
-        statistics: env.BILI_STATISTICS || CLIPBOARD_META_DEFAULTS.statistics,
-        plaintext,
-        encryptionKey,
-        encryptionIv,
-        headers: {
-            buvid,
-            fpLocal: env.BILI_FP_LOCAL || CLIPBOARD_META_DEFAULTS.fpLocal,
-            fpRemote: env.BILI_FP_REMOTE || CLIPBOARD_META_DEFAULTS.fpRemote,
-            sessionId: env.BILI_SESSION_ID || CLIPBOARD_META_DEFAULTS.sessionId,
-            guestid: env.BILI_GUEST_ID || CLIPBOARD_META_DEFAULTS.guestid,
-            env: env.BILI_ENV || CLIPBOARD_META_DEFAULTS.env,
-            appKeyHeader: env.BILI_APP_KEY_HEADER || CLIPBOARD_META_DEFAULTS.appKeyHeader,
-            userAgent: env.BILI_USER_AGENT || CLIPBOARD_META_DEFAULTS.userAgent,
-            traceId: env.BILI_TRACE_ID || '',
-            ticket: env.BILI_X_BILI_TICKET || '',
-            httpEngine: env.BILI_HTTP_ENGINE || CLIPBOARD_META_DEFAULTS.httpEngine
-        }
-    };
+	return {
+		host: CLIPBOARD_META_DEFAULTS.host,
+		path: CLIPBOARD_META_DEFAULTS.path,
+		appkey: env.BILI_APPKEY || CLIPBOARD_META_DEFAULTS.appkey,
+		appsec: env.BILI_APPSEC || CLIPBOARD_META_DEFAULTS.appsec,
+		accessKey: env.BILI_ACCESS_KEY || CLIPBOARD_META_DEFAULTS.accessKey,
+		build: env.BILI_BUILD || CLIPBOARD_META_DEFAULTS.build,
+		business: env.BILI_BUSINESS || businessFromText || CLIPBOARD_META_DEFAULTS.business,
+		cLocale: env.BILI_C_LOCALE || CLIPBOARD_META_DEFAULTS.cLocale,
+		channel: env.BILI_CHANNEL || CLIPBOARD_META_DEFAULTS.channel,
+		disableRcmd: env.BILI_DISABLE_RCMD || CLIPBOARD_META_DEFAULTS.disableRcmd,
+		mobiApp: env.BILI_MOBI_APP || CLIPBOARD_META_DEFAULTS.mobiApp,
+		platform: env.BILI_PLATFORM || CLIPBOARD_META_DEFAULTS.platform,
+		sLocale: env.BILI_S_LOCALE || CLIPBOARD_META_DEFAULTS.sLocale,
+		startPattern: env.BILI_START_PATTERN || CLIPBOARD_META_DEFAULTS.startPattern,
+		statistics: env.BILI_STATISTICS || CLIPBOARD_META_DEFAULTS.statistics,
+		plaintext,
+		encryptionKey,
+		encryptionIv,
+		headers: {
+			buvid,
+			fpLocal: env.BILI_FP_LOCAL || CLIPBOARD_META_DEFAULTS.fpLocal,
+			fpRemote: env.BILI_FP_REMOTE || CLIPBOARD_META_DEFAULTS.fpRemote,
+			sessionId: env.BILI_SESSION_ID || CLIPBOARD_META_DEFAULTS.sessionId,
+			guestid: env.BILI_GUEST_ID || CLIPBOARD_META_DEFAULTS.guestid,
+			env: env.BILI_ENV || CLIPBOARD_META_DEFAULTS.env,
+			appKeyHeader: env.BILI_APP_KEY_HEADER || CLIPBOARD_META_DEFAULTS.appKeyHeader,
+			userAgent: env.BILI_USER_AGENT || CLIPBOARD_META_DEFAULTS.userAgent,
+			traceId: env.BILI_TRACE_ID || '',
+			ticket: env.BILI_X_BILI_TICKET || '',
+			httpEngine: env.BILI_HTTP_ENGINE || CLIPBOARD_META_DEFAULTS.httpEngine
+		}
+	};
 }
 
 async function encryptClipboardPlaintext(plaintext, keyText, ivText) {
-    const keyBytes = textEncoder.encode(keyText);
-    const ivBytes = textEncoder.encode(ivText);
+	const keyBytes = textEncoder.encode(keyText);
+	const ivBytes = textEncoder.encode(ivText);
 
-    if (![16, 24, 32].includes(keyBytes.length)) {
-        throw httpError('Invalid clipboard encryption key length.', 500);
-    }
-    if (ivBytes.length !== 16) {
-        throw httpError('Invalid clipboard encryption IV length.', 500);
-    }
+	if (![16, 24, 32].includes(keyBytes.length)) {
+		throw httpError('Invalid clipboard encryption key length.', 500);
+	}
+	if (ivBytes.length !== 16) {
+		throw httpError('Invalid clipboard encryption IV length.', 500);
+	}
 
-    const cryptoKey = await crypto.subtle.importKey(
-        'raw',
-        keyBytes,
-        { name: 'AES-CBC' },
-        false,
-        ['encrypt']
-    );
+	const cryptoKey = await crypto.subtle.importKey(
+		'raw',
+		keyBytes,
+		{ name: 'AES-CBC' },
+		false,
+		['encrypt']
+	);
 
-    const encryptedBuffer = await crypto.subtle.encrypt(
-        { name: 'AES-CBC', iv: ivBytes },
-        cryptoKey,
-        textEncoder.encode(plaintext)
-    );
+	const encryptedBuffer = await crypto.subtle.encrypt(
+		{ name: 'AES-CBC', iv: ivBytes },
+		cryptoKey,
+		textEncoder.encode(plaintext)
+	);
 
-    return wrapBase64ForAndroid(bytesToBase64(new Uint8Array(encryptedBuffer)));
+	return wrapBase64ForAndroid(bytesToBase64(new Uint8Array(encryptedBuffer)));
 }
 
 async function resolveClipboardShareUrl(plaintext, env) {
-    const config = getClipboardMetaConfig(env, plaintext);
-    const encryptedData = await encryptClipboardPlaintext(
-        config.plaintext,
-        config.encryptionKey,
-        config.encryptionIv
-    );
+	const config = getClipboardMetaConfig(env, plaintext);
+	const encryptedData = await encryptClipboardPlaintext(
+		config.plaintext,
+		config.encryptionKey,
+		config.encryptionIv
+	);
 
-    const params = {
-        access_key: config.accessKey,
-        appkey: config.appkey,
-        build: config.build,
-        business: config.business,
-        c_locale: config.cLocale,
-        channel: config.channel,
-        data: encryptedData,
-        disable_rcmd: config.disableRcmd,
-        mobi_app: config.mobiApp,
-        platform: config.platform,
-        s_locale: config.sLocale,
-        start_pattern: config.startPattern,
-        statistics: config.statistics,
-        ts: Math.floor(Date.now() / 1000).toString()
-    };
+	const params = {
+		access_key: config.accessKey,
+		appkey: config.appkey,
+		build: config.build,
+		business: config.business,
+		c_locale: config.cLocale,
+		channel: config.channel,
+		data: encryptedData,
+		disable_rcmd: config.disableRcmd,
+		mobi_app: config.mobiApp,
+		platform: config.platform,
+		s_locale: config.sLocale,
+		start_pattern: config.startPattern,
+		statistics: config.statistics,
+		ts: Math.floor(Date.now() / 1000).toString()
+	};
 
-    const orderedKeys = Object.keys(params).sort();
-    const query = orderedKeys
-        .map(key => `${strictEncode(key)}=${strictEncode(params[key])}`)
-        .join('&');
-    const sign = md5Hex(query + config.appsec);
-    const target = `https://${config.host}${config.path}?${query}&sign=${sign}`;
+	const orderedKeys = Object.keys(params).sort();
+	const query = orderedKeys
+		.map(key => `${strictEncode(key)}=${strictEncode(params[key])}`)
+		.join('&');
+	const sign = md5Hex(query + config.appsec);
+	const target = `https://${config.host}${config.path}?${query}&sign=${sign}`;
 
-    const headers = new Headers({
-        Accept: 'application/json',
-        'app-key': config.headers.appKeyHeader,
-        'bili-http-engine': config.headers.httpEngine,
-        buvid: config.headers.buvid,
-        env: config.headers.env,
-        fp_local: config.headers.fpLocal,
-        fp_remote: config.headers.fpRemote,
-        guestid: config.headers.guestid,
-        session_id: config.headers.sessionId,
-        'user-agent': config.headers.userAgent,
-        'x-bili-trace-id': config.headers.traceId || generateTraceId()
-    });
+	const headers = new Headers({
+		Accept: 'application/json',
+		'app-key': config.headers.appKeyHeader,
+		'bili-http-engine': config.headers.httpEngine,
+		buvid: config.headers.buvid,
+		env: config.headers.env,
+		fp_local: config.headers.fpLocal,
+		fp_remote: config.headers.fpRemote,
+		guestid: config.headers.guestid,
+		session_id: config.headers.sessionId,
+		'user-agent': config.headers.userAgent,
+		'x-bili-trace-id': config.headers.traceId || generateTraceId()
+	});
 
-    if (config.headers.ticket) {
-        headers.set('x-bili-ticket', config.headers.ticket);
-    }
+	if (config.headers.ticket) {
+		headers.set('x-bili-ticket', config.headers.ticket);
+	}
 
-    const response = await fetch(target, { method: 'GET', headers, redirect: 'follow' });
-    const responseText = await response.text();
+	const response = await fetch(target, { method: 'GET', headers, redirect: 'follow' });
+	const responseText = await response.text();
 
-    let payload;
-    try {
-        payload = JSON.parse(responseText);
-    } catch (error) {
-        throw httpError(`clipboardMeta returned non-JSON response (${response.status}).`, 502);
-    }
+	let payload;
+	try {
+		payload = JSON.parse(responseText);
+	} catch (error) {
+		throw httpError(`clipboardMeta returned non-JSON response (${response.status}).`, 502);
+	}
 
-    if (!response.ok || payload?.code !== 0) {
-        throw httpError(
-            payload?.message || payload?.msg || `clipboardMeta request failed with HTTP ${response.status}.`,
-            response.ok ? 502 : response.status
-        );
-    }
+	if (!response.ok || payload?.code !== 0) {
+		throw httpError(
+			payload?.message || payload?.msg || `clipboardMeta request failed with HTTP ${response.status}.`,
+			response.ok ? 502 : response.status
+		);
+	}
 
-    const resolvedUrl = payload?.data?.url;
-    if (!resolvedUrl) {
-        throw httpError('clipboardMeta response missing data.url.', 502);
-    }
+	const resolvedUrl = payload?.data?.url;
+	if (!resolvedUrl) {
+		throw httpError('clipboardMeta response missing data.url.', 502);
+	}
 
-    return resolvedUrl;
+	return resolvedUrl;
 }
 
 async function resolveShareInput(input, env) {
-    const trimmed = String(input || '').trim();
-    if (!trimmed) {
-        throw httpError('Input is required.', 400);
-    }
+	const trimmed = String(input || '').trim();
+	if (!trimmed) {
+		throw httpError('Input is required.', 400);
+	}
 
-    const directMatch = extractActAndLottery(trimmed);
-    if (directMatch) {
-        return { inputType: 'url', ...directMatch };
-    }
+	const directMatch = extractActAndLottery(trimmed);
+	if (directMatch) {
+		return { inputType: 'url', ...directMatch };
+	}
 
-    if (!looksLikeClipboardShareText(trimmed)) {
-        throw httpError('Unable to find a valid bilibili share URL or supported clipboard text.', 400);
-    }
+	if (!looksLikeClipboardShareText(trimmed)) {
+		throw httpError('Unable to find a valid bilibili share URL or supported clipboard text.', 400);
+	}
 
-    const resolvedUrl = await resolveClipboardShareUrl(trimmed, env);
-    const resolvedMatch = extractActAndLottery(resolvedUrl);
-    if (!resolvedMatch) {
-        throw httpError('clipboardMeta returned a URL without act_id or lottery_id.', 502);
-    }
+	const resolvedUrl = await resolveClipboardShareUrl(trimmed, env);
+	const resolvedMatch = extractActAndLottery(resolvedUrl);
+	if (!resolvedMatch) {
+		throw httpError('clipboardMeta returned a URL without act_id or lottery_id.', 502);
+	}
 
-    return { inputType: 'clipboard_text', ...resolvedMatch };
+	return { inputType: 'clipboard_text', ...resolvedMatch };
 }
 
 async function readRequestInput(request) {
-    if (request.method !== 'POST') return '';
+	if (request.method !== 'POST') return '';
 
-    const contentType = request.headers.get('Content-Type') || '';
-    if (contentType.includes('application/json')) {
-        const body = await request.clone().json().catch(() => null);
-        return typeof body?.input === 'string' ? body.input : '';
-    }
+	const contentType = request.headers.get('Content-Type') || '';
+	if (contentType.includes('application/json')) {
+		const body = await request.clone().json().catch(() => null);
+		return typeof body?.input === 'string' ? body.input : '';
+	}
 
-    if (contentType.includes('text/plain')) {
-        return request.clone().text();
-    }
+	if (contentType.includes('text/plain')) {
+		return request.clone().text();
+	}
 
-    return '';
+	return '';
 }
 
 async function fetchBilibiliJson(target, label) {
-    const response = await fetch(target);
-    const responseText = await response.text();
+	const response = await fetch(target);
+	const responseText = await response.text();
 
-    let data;
-    try {
-        data = JSON.parse(responseText);
-    } catch (error) {
-        throw httpError(`${label} returned non-JSON response (${response.status}).`, 502);
-    }
+	let data;
+	try {
+		data = JSON.parse(responseText);
+	} catch (error) {
+		throw httpError(`${label} returned non-JSON response (${response.status}).`, 502);
+	}
 
-    if (!response.ok || data?.code !== 0) {
-        throw httpError(
-            data?.message || data?.msg || `${label} failed with HTTP ${response.status}.`,
-            response.ok ? 502 : response.status
-        );
-    }
+	if (!response.ok || data?.code !== 0) {
+		throw httpError(
+			data?.message || data?.msg || `${label} failed with HTTP ${response.status}.`,
+			response.ok ? 502 : response.status
+		);
+	}
 
-    return data;
+	return data;
 }
 
 export default {
-    async fetch(request, env, ctx) {
-        // ==========================================
-        // 初始化环境变量 (环境配置优先于代码全局变量)
-        // ==========================================
-        const SECRET_KEY = env.JWT_SECRET || DEFAULT_SECRET_KEY;
-        const AUTH_USER = env.BASIC_USER || DEFAULT_USERNAME;
-        const AUTH_PASS = env.BASIC_PASS || DEFAULT_PASSWORD;
+	async fetch(request, env, ctx) {
+		// ==========================================
+		// 初始化环境变量 (环境配置优先于代码全局变量)
+		// ==========================================
+		const SECRET_KEY = env.JWT_SECRET || DEFAULT_SECRET_KEY;
+		const AUTH_USER = env.BASIC_USER || DEFAULT_USERNAME;
+		const AUTH_PASS = env.BASIC_PASS || DEFAULT_PASSWORD;
 
-        // ==========================================
-        // Basic Authorization 鉴权拦截器
-        // ==========================================
-        if (AUTH_USER && AUTH_PASS) {
-            const authHeader = request.headers.get('Authorization');
-            const expectedAuth = 'Basic ' + btoa(`${AUTH_USER}:${AUTH_PASS}`);
+		// ==========================================
+		// Basic Authorization 鉴权拦截器
+		// ==========================================
+		if (AUTH_USER && AUTH_PASS) {
+			const authHeader = request.headers.get('Authorization');
+			const expectedAuth = 'Basic ' + btoa(`${AUTH_USER}:${AUTH_PASS}`);
 
-            // 预检请求放行，避免跨域报错
-            if (request.method !== 'OPTIONS' && authHeader !== expectedAuth) {
-                return new Response('401 Unauthorized', {
-                    status: 401,
-                    headers: {
-                        'WWW-Authenticate': 'Basic realm="BiliProxy Secure Area", charset="UTF-8"',
-                        'Content-Type': 'text/plain;charset=UTF-8'
-                    }
-                });
-            }
-        }
+			// 预检请求放行，避免跨域报错
+			if (request.method !== 'OPTIONS' && authHeader !== expectedAuth) {
+				return new Response('401 Unauthorized', {
+					status: 401,
+					headers: {
+						'WWW-Authenticate': 'Basic realm="BiliProxy Secure Area", charset="UTF-8"',
+						'Content-Type': 'text/plain;charset=UTF-8'
+					}
+				});
+			}
+		}
 
-        const url = new URL(request.url);
+		const url = new URL(request.url);
 
-        if (request.method === 'OPTIONS') {
-            return new Response(null, {
-                headers: {
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-                    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-                    'Access-Control-Allow-Credentials': 'true'
-                }
-            });
-        }
+		if (request.method === 'OPTIONS') {
+			return new Response(null, {
+				headers: {
+					'Access-Control-Allow-Origin': '*',
+					'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+					'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+					'Access-Control-Allow-Credentials': 'true'
+				}
+			});
+		}
 
-        // ==========================================
-        // 路由逻辑
-        // ==========================================
-        if (url.pathname === '/api/basic') {
-            const actId = url.searchParams.get('act_id');
-            if (!actId) {
-                return jsonResponse({ error: 'Missing act_id.' }, { status: 400 });
-            }
+		// ==========================================
+		// 路由逻辑
+		// ==========================================
+		if (url.pathname === '/api/basic') {
+			const actId = url.searchParams.get('act_id');
+			if (!actId) {
+				return jsonResponse({ error: 'Missing act_id.' }, { status: 400 });
+			}
 
-            try {
-                const target = `https://api.bilibili.com/x/vas/dlc_act/act/basic?act_id=${actId}&csrf=`;
-                const data = await fetchBilibiliJson(target, 'basic API');
-                return jsonResponse(data);
-            } catch (err) {
-                return jsonResponse(
-                    { error: err.message },
-                    { status: err.statusCode || 500 }
-                );
-            }
-        }
+			try {
+				const target = `https://api.bilibili.com/x/vas/dlc_act/act/basic?act_id=${actId}&csrf=`;
+				const data = await fetchBilibiliJson(target, 'basic API');
+				return jsonResponse(data);
+			} catch (err) {
+				return jsonResponse(
+					{ error: err.message },
+					{ status: err.statusCode || 500 }
+				);
+			}
+		}
 
-        if (url.pathname === '/api/detail') {
-            let actId = url.searchParams.get('act_id');
-            let lotteryId = url.searchParams.get('lottery_id');
-            let input = url.searchParams.get('input') || '';
-            let resolvedShare = null;
+		if (url.pathname === '/api/detail') {
+			let actId = url.searchParams.get('act_id');
+			let lotteryId = url.searchParams.get('lottery_id');
+			let input = url.searchParams.get('input') || '';
+			let resolvedShare = null;
 
-            try {
-                if (!input && (!actId || !lotteryId || request.method === 'POST')) {
-                    input = (await readRequestInput(request)).trim();
-                }
+			try {
+				if (!input && (!actId || !lotteryId || request.method === 'POST')) {
+					input = (await readRequestInput(request)).trim();
+				}
 
-                if ((!actId || !lotteryId) && input) {
-                    resolvedShare = await resolveShareInput(input, env);
-                    actId = actId || resolvedShare.actId;
-                    lotteryId = lotteryId || resolvedShare.lotteryId;
-                }
+				if ((!actId || !lotteryId) && input) {
+					resolvedShare = await resolveShareInput(input, env);
+					actId = actId || resolvedShare.actId;
+					lotteryId = lotteryId || resolvedShare.lotteryId;
+				}
 
-                if (!actId || !lotteryId) {
-                    throw httpError('Missing act_id / lottery_id, and no resolvable share input was provided.', 400);
-                }
+				if (!actId || !lotteryId) {
+					throw httpError('Missing act_id / lottery_id, and no resolvable share input was provided.', 400);
+				}
 
-                const target = `https://api.bilibili.com/x/vas/dlc_act/lottery_home_detail?act_id=${actId}&appkey=1d8b6e7d45233436&disable_rcmd=0&sign=341070dd7b86b7ce7c3655972d9824a7&lottery_id=${lotteryId}&ts=${Math.floor(Date.now() / 1000)}&mobi_app=android&platform=android`;
-                const data = await fetchBilibiliJson(target, 'detail API');
+				const target = `https://api.bilibili.com/x/vas/dlc_act/lottery_home_detail?act_id=${actId}&appkey=1d8b6e7d45233436&disable_rcmd=0&sign=341070dd7b86b7ce7c3655972d9824a7&lottery_id=${lotteryId}&ts=${Math.floor(Date.now() / 1000)}&mobi_app=android&platform=android`;
+				const data = await fetchBilibiliJson(target, 'detail API');
 
-                const allowedDomains = extractRootDomains(data);
-                const token = await signJWT({
-                    origins: allowedDomains,
-                    exp: Math.floor(Date.now() / 1000) + (60 * 60 * 2)
-                }, SECRET_KEY);
+				const allowedDomains = extractRootDomains(data);
+				const token = await signJWT({
+					origins: allowedDomains,
+					exp: Math.floor(Date.now() / 1000) + (60 * 60 * 2)
+				}, SECRET_KEY);
 
-                const headers = new Headers({
-                    'Set-Cookie': `BiliProxyToken=${token}; Path=/; HttpOnly; SameSite=Strict`
-                });
-                if (resolvedShare?.resolvedUrl) {
-                    headers.set('X-Bili-Resolved-Url', resolvedShare.resolvedUrl);
-                }
+				const headers = new Headers({
+					'Set-Cookie': `BiliProxyToken=${token}; Path=/; HttpOnly; SameSite=Strict`
+				});
+				if (resolvedShare?.resolvedUrl) {
+					headers.set('X-Bili-Resolved-Url', resolvedShare.resolvedUrl);
+				}
 
-                return jsonResponse(data, { headers });
-            } catch (err) {
-                return jsonResponse(
-                    { error: err.message },
-                    { status: err.statusCode || 500 }
-                );
-            }
-        }
+				return jsonResponse(data, { headers });
+			} catch (err) {
+				return jsonResponse(
+					{ error: err.message },
+					{ status: err.statusCode || 500 }
+				);
+			}
+		}
 
-        if (url.pathname === '/proxy') {
-            const targetUrlStr = url.searchParams.get('url');
-            if (!targetUrlStr) return new Response('Missing target URL', { status: 400 });
+		if (url.pathname === '/proxy') {
+			const targetUrlStr = url.searchParams.get('url');
+			if (!targetUrlStr) return new Response('Missing target URL', { status: 400 });
 
-            const cookieHeader = request.headers.get('Cookie') || '';
-            const match = cookieHeader.match(/BiliProxyToken=([^;]+)/);
-            if (!match) return new Response('403 Forbidden: Missing Token', { status: 403 });
+			const cookieHeader = request.headers.get('Cookie') || '';
+			const match = cookieHeader.match(/BiliProxyToken=([^;]+)/);
+			if (!match) return new Response('403 Forbidden: Missing Token', { status: 403 });
 
-            const payload = await verifyJWT(match[1], SECRET_KEY);
-            if (!payload || !payload.origins || payload.exp < Math.floor(Date.now() / 1000)) {
-                return new Response('403 Forbidden: Invalid or Expired Token', { status: 403 });
-            }
+			const payload = await verifyJWT(match[1], SECRET_KEY);
+			if (!payload || !payload.origins || payload.exp < Math.floor(Date.now() / 1000)) {
+				return new Response('403 Forbidden: Invalid or Expired Token', { status: 403 });
+			}
 
-            try {
-                const targetUrl = new URL(targetUrlStr);
-                const parts = targetUrl.hostname.split('.');
-                const rootDomain = parts.length >= 2 ? parts.slice(-2).join('.') : targetUrl.hostname;
+			try {
+				const targetUrl = new URL(targetUrlStr);
+				const parts = targetUrl.hostname.split('.');
+				const rootDomain = parts.length >= 2 ? parts.slice(-2).join('.') : targetUrl.hostname;
 
-                if (!payload.origins.includes(rootDomain)) {
-                    return new Response(`403 Forbidden: Domain ${rootDomain} not allowed`, { status: 403 });
-                }
+				if (!payload.origins.includes(rootDomain)) {
+					return new Response(`403 Forbidden: Domain ${rootDomain} not allowed`, { status: 403 });
+				}
 
-                const newHeaders = new Headers(request.headers);
-                newHeaders.set('Origin', 'https://www.bilibili.com');
-                newHeaders.set('Referer', 'https://www.bilibili.com/');
-                newHeaders.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-                newHeaders.delete('Cookie');
-                newHeaders.delete('Authorization'); // 防止 Basic Auth 头部传给目标站
+				const newHeaders = new Headers(request.headers);
+				newHeaders.set('Origin', 'https://www.bilibili.com');
+				newHeaders.set('Referer', 'https://www.bilibili.com/');
+				newHeaders.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+				newHeaders.delete('Cookie');
+				newHeaders.delete('Authorization'); // 防止 Basic Auth 头部传给目标站
 
-                const proxyRequest = new Request(targetUrl, {
-                    method: request.method,
-                    headers: newHeaders,
-                    redirect: 'follow'
-                });
+				const proxyRequest = new Request(targetUrl, {
+					method: request.method,
+					headers: newHeaders,
+					redirect: 'follow'
+				});
 
-                const response = await fetch(proxyRequest);
-                return new Response(response.body, {
-                    status: response.status,
-                    headers: {
-                        ...Object.fromEntries(response.headers),
-                        'Access-Control-Allow-Origin': '*',
-                        'Access-Control-Allow-Credentials': 'true'
-                    }
-                });
-            } catch (error) {
-                return new Response(`Proxy Error: ${error.message}`, { status: 500 });
-            }
-        }
+				const response = await fetch(proxyRequest);
+				return new Response(response.body, {
+					status: response.status,
+					headers: {
+						...Object.fromEntries(response.headers),
+						'Access-Control-Allow-Origin': '*',
+						'Access-Control-Allow-Credentials': 'true'
+					}
+				});
+			} catch (error) {
+				return new Response(`Proxy Error: ${error.message}`, { status: 500 });
+			}
+		}
 
-        if (url.pathname === '/') {
-            return new Response(htmlContent, {
-                headers: { 'Content-Type': 'text/html;charset=UTF-8' },
-            });
-        }
+		if (url.pathname === '/') {
+			return new Response(htmlContent, {
+				headers: { 'Content-Type': 'text/html;charset=UTF-8' },
+			});
+		}
 
-        return new Response('Not Found', { status: 404 });
-    }
+		return new Response('Not Found', { status: 404 });
+	}
 };
 
 // ==========================================
@@ -769,6 +769,7 @@ const htmlContent = `
 						<button type="button" onclick="copyBasicUrl()">复制基础接口地址</button>
 						<button type="button" onclick="openBasicUrl()">打开基础接口</button>
 					</div>
+					<br/>
 					<textarea id="basic-data" rows="6" placeholder="把基础接口返回的 JSON 粘贴到这里..."></textarea>
 					<div style="margin-top: 10px; text-align: right;">
 						<button type="button" onclick="openDetailFromBasic()">解析基础数据并打开媒体接口</button>
@@ -1146,59 +1147,57 @@ const htmlContent = `
 		    fileNames = [];
 		
 		    itemList.forEach((item, index) => {
-		if (!item || !item.card_info) return;
+		        if (!item || !item.card_info) return;
 		
-		const cardInfo = item.card_info;
-		const rawVideoUrl = cardInfo.video_list && cardInfo.video_list[0];
-		const rawImgUrl = cardInfo.card_img;
+		        const cardInfo = item.card_info;
+		        const rawVideoUrl = cardInfo.video_list && cardInfo.video_list[0];
+		        const rawImgUrl = cardInfo.card_img;
 		
-		if (!rawVideoUrl && !rawImgUrl) return;
+		        if (!rawVideoUrl && !rawImgUrl) return;
 		
-		const wrapper = document.createElement('div');
-		wrapper.className = 'media-card';
+		        const wrapper = document.createElement('div');
+		        wrapper.className = 'media-card';
 		
-		const title = document.createElement('div');
-		title.className = 'title';
-		title.innerText = sanitizeFileName(cardInfo.card_name || ('未命名素材 ' + (index + 1)));
+		        const title = document.createElement('div');
+		        title.className = 'title';
+		        title.innerText = sanitizeFileName(cardInfo.card_name || ('未命名素材 ' + (index + 1)));
 		
-		if (rawVideoUrl) {
-		    // 视频：走本地直连，不走 CF /proxy
-		    const video = document.createElement('video');
-		    video.src = rawVideoUrl;
-		    video.controls = true;
-		    video.preload = 'metadata';
-		    video.crossOrigin = 'anonymous';
-		    video.setAttribute('playsinline', 'true');
-		    wrapper.appendChild(video);
+		        if (rawVideoUrl) {
+		            const video = document.createElement('video');
+		            video.src = rawVideoUrl;
+		            video.controls = true;
+		            video.preload = 'metadata';
+			video.referrerPolicy = 'no-referrer';
+		            video.setAttribute('playsinline', 'true');
+		            wrapper.appendChild(video);
 		
-		    fileUrls.push(rawVideoUrl);
-		    fileNames.push({
-		        name: title.innerText,
-		        originalUrl: rawVideoUrl,
-		        fetchUrl: rawVideoUrl,
-		        mediaType: 'video',
-		        viaProxy: false
-		    });
-		} else {
-		    // 图片：继续走 CF /proxy
-		    const proxiedImgUrl = '/proxy?url=' + encodeURIComponent(rawImgUrl);
-		    const img = document.createElement('img');
-		    img.src = proxiedImgUrl;
-		    img.alt = title.innerText;
-		    wrapper.appendChild(img);
+		            fileUrls.push(rawVideoUrl);
+		            fileNames.push({
+		                name: title.innerText,
+		                originalUrl: rawVideoUrl,
+		                fetchUrl: rawVideoUrl,
+		                mediaType: 'video',
+		                viaProxy: false
+		            });
+		        } else {
+		            const img = document.createElement('img');
+		            img.src = rawImgUrl;
+		            img.alt = title.innerText;
+			img.referrerPolicy = 'no-referrer';
+		            wrapper.appendChild(img);
 		
-		    fileUrls.push(proxiedImgUrl);
-		    fileNames.push({
-		        name: title.innerText,
-		        originalUrl: rawImgUrl,
-		        fetchUrl: proxiedImgUrl,
-		        mediaType: 'image',
-		        viaProxy: true
-		    });
-		}
+		            fileUrls.push(rawImgUrl);
+		            fileNames.push({
+		                name: title.innerText,
+		                originalUrl: rawImgUrl,
+		                fetchUrl: rawImgUrl,
+		                mediaType: 'image',
+		                viaProxy: false
+		            });
+		        }
 		
-		wrapper.appendChild(title);
-		grid.appendChild(wrapper);
+		        wrapper.appendChild(title);
+		        grid.appendChild(wrapper);
 		    });
 		}
 		async function downloadFilesAsZip() {
@@ -1248,7 +1247,12 @@ const htmlContent = `
 		let inferredExt = '.bin';
 		
 		try {
-		    const response = await fetchWithRetry(fetchUrl, {}, 3, 30000);
+		    const response = await fetchWithRetry(fetchUrl, {
+		    referrerPolicy: 'no-referrer',
+		    headers: {
+		        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+		    }
+		}, 3, 30000);
 		    const blob = await response.blob();
 		    inferredExt = inferExtFromUrlOrBlob(originalUrl, blob);
 		    zip.file(baseName + inferredExt, blob);
