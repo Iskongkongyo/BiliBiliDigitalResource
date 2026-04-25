@@ -6,6 +6,8 @@
 
 这是一个基于 **Cloudflare Workers** 打造的纯 Serverless 级 B 站数字周边解析与下载工具。前端极简唯美，后端硬核防盗。只需要一键部署，你就能实现B站数字周边自由！
 
+演示网站：[https://bilibili.202132.xyz](https://bilibili.202132.xyz)
+
 > [!CAUTION]
 >
 > 本工具仅供个人学习、研究前端跨域及 Cloudflare Workers 技术使用。使用者行为与本作者无关！解析获取的数字周边版权均属于 **Bilibili 及原作者** 所有。请勿将下载的素材用于任何商业用途或二次倒卖，否则后果自负！
