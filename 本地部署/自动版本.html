@@ -6,7 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>B站数字周边提取工具</title>
     <style>
-        /* 纯白亮色主题与青绿色配色 */
         :root {
             --primary: #10b981;
             --primary-glow: rgba(16, 185, 129, 0.3);
@@ -56,7 +55,6 @@
             justify-content: space-between;
         }
 
-        /* Github Icon Hover Effect */
         .github-icon {
             color: var(--text-main);
             transition: color 0.3s ease, filter 0.3s ease;
@@ -178,17 +176,8 @@
             background: #f3f4f6;
         }
 
-        /* 新增：修复视频全屏时被裁剪的问题 */
-        .media-card video:fullscreen {
-            object-fit: contain;
-            background: #000;
-        }
-
-        .media-card video:-webkit-full-screen {
-            object-fit: contain;
-            background: #000;
-        }
-
+        .media-card video:fullscreen,
+        .media-card video:-webkit-full-screen,
         .media-card video:-moz-full-screen {
             object-fit: contain;
             background: #000;
@@ -239,6 +228,12 @@
             font-weight: bold;
             font-size: 0.9em;
         }
+
+        #lottery-selection-panel { display:none; margin-bottom:24px; border:1px solid var(--primary); border-radius:var(--border-radius); padding:20px; background:linear-gradient(135deg, #f0fdf4, #ecfdf5); }
+        #lottery-buttons { display:flex; gap:12px; flex-wrap:wrap; margin-top:14px; }
+        #lottery-buttons button { background:linear-gradient(135deg, #10b981, #059669); padding:12px 22px; border-radius:10px; font-size:14px; min-width:120px; }
+        #lottery-buttons button:hover { background:linear-gradient(135deg, #059669, #047857); }
+        #lottery-buttons button.recommended { box-shadow: 0 0 0 2px #fbbf24, 0 4px 16px rgba(251,191,36,0.35); position:relative; }
     </style>
 </head>
 
@@ -259,33 +254,26 @@
             <div class="step-container">
                 <div class="step-title"><span class="step-badge">1</span> 获取链接</div>
                 <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">用B站移动端APP打开<a
-                        href="bilibili://forward?-Btarget=https%3A%2F%2Fwww.bilibili.com%2Fh5%2Fmall%2Fhome%3Fnavhide%3D1">个性装扮(点我即达)</a>，进入想要下载的数字周边，点击右上角分享获取链接（建议分享到QQ复制链接）。
+                        href="bilibili://forward?-Btarget=https%3A%2F%2Fwww.bilibili.com%2Fh5%2Fmall%2Fhome%3Fnavhide%3D1">个性装扮(点我即达)</a>，进入想要下载的数字周边，点击右上角分享获取链接。
                 </p>
                 <textarea id="filepath" rows="4"
                     placeholder="在此处粘贴分享URL，例如：https://www.bilibili.com/h5/mall/..."></textarea>
                 <div style="margin-top: 10px; text-align: right;">
-                    <button onclick="openBasicApi()">打开基础接口</button>
+                    <button id="fetch-btn" onclick="getData()">一键智能解析</button>
                 </div>
             </div>
 
+            <div id="lottery-selection-panel">
+                <div class="step-title"><span class="step-badge">⚡</span> 检测到多个数字周边</div>
+                <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">该活动包含多个数字周边，请选择要提取的：</p>
+                <div id="lottery-buttons"></div>
+            </div>
+
             <div class="step-container">
-                <div class="step-title">
-                    <span class="step-badge">2</span> 获取数字周边信息
-                </div>
+                <div class="step-title"><span class="step-badge">2</span> 获取媒体数据</div>
                 <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">
-                    点击下方按钮打开基础信息接口，复制全部 JSON 粘贴到此处，然后点击“解析并打开媒体接口”。
-                </p>
-                <textarea id="basic-data" rows="6" placeholder="在此处粘贴基础接口 JSON 数据..."></textarea>
-                <div style="margin-top: 10px; text-align: right;">
-                    <button onclick="openDetailApi()">解析并打开媒体接口</button>
-                </div>
-            </div>
-
-            <div class="step-container">
-                <div class="step-title"><span class="step-badge">3</span> 获取媒体数据</div>
-                <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">在上一步弹出的新窗口中，复制页面所有的 JSON
-                    文本，粘贴到下方，然后点击“渲染视频与图片”。</p>
-                <textarea id="data" rows="6" placeholder="在此处粘贴刚刚打开的网页中的 JSON 数据..."></textarea>
+                    正常情况下系统会自动完成。如果自动解析失败并弹出了新网页，请将网页中的 JSON 数据粘贴到下方并手动点击渲染。</p>
+                <textarea id="data" rows="6" placeholder="正常情况无需手动粘贴..."></textarea>
                 <div style="margin-top: 10px; text-align: right;">
                     <button onclick="getVideos()">渲染视频与图片</button>
                 </div>
@@ -296,19 +284,16 @@
             <h2 id="result-title">提取结果
                 <button id="download-btn" onclick="downloadFilesAsZip()">打包下载全部</button>
             </h2>
-
             <div id="progress-container" class="progress-wrapper">
                 <progress id="download-progress" max="100" value="0"></progress>
                 <div id="progressText">准备下载...</div>
             </div>
-
             <div id="videos-grid"></div>
         </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-
     <script>
         let zipName = '数字周边';
         let fileUrls = [];
@@ -317,105 +302,154 @@
 
         function getParam(url, param) {
             try {
-                const handelUrl = new URL(url);
-                return handelUrl.searchParams.get(param);
+                return new URL(url).searchParams.get(param);
             } catch (e) {
                 return null;
             }
         }
 
-        // 带超时 + 重试机制的 fetch
-        async function fetchWithRetry(url, options = {}, retries = 3, timeoutMs = 20000) {
+        function sanitizeFileName(name, fallback = '未命名素材') {
+            const cleaned = String(name || '')
+                .replace(/[\\/:*?"<>|]/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+            return cleaned || fallback;
+        }
+
+        function inferExtFromUrlOrBlob(url, blob) {
+            try {
+                const urlObj = new URL(url);
+                const match = urlObj.pathname.match(/\.[a-zA-Z0-9]{2,5}$/i);
+                if (match) return match[0];
+            } catch (e) { }
+
+            const mime = blob?.type || '';
+            if (mime.includes('video/mp4')) return '.mp4';
+            if (mime.includes('video/webm')) return '.webm';
+            if (mime.includes('image/png')) return '.png';
+            if (mime.includes('image/webp')) return '.webp';
+            if (mime.includes('image/gif')) return '.gif';
+            if (mime.includes('image/jpeg')) return '.jpg';
+            return mime.startsWith('video/') ? '.mp4' : '.jpg';
+        }
+
+        async function fetchWithRetry(url, options = {}, retries = 3, timeoutMs = 15000) {
             for (let i = 0; i < retries; i++) {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
                 try {
                     const response = await fetch(url, { ...options, signal: controller.signal });
                     clearTimeout(timeoutId);
-
-                    if (!response.ok) {
-                        throw new Error(`HTTP 错误: ${response.status}`);
-                    }
-
+                    if (!response.ok) throw new Error(`HTTP 错误: ${response.status}`);
                     return response;
                 } catch (error) {
                     clearTimeout(timeoutId);
-
-                    if (i === retries - 1) {
-                        throw new Error(`请求失败，已重试 ${retries} 次: ${error.message}`);
-                    }
-
+                    console.warn(`请求失败 (第 ${i + 1} 次尝试): ${url}`, error.message);
+                    if (i === retries - 1) throw new Error(`请求失败，已重试 ${retries} 次: ${error.message}`);
                     await new Promise(resolve => setTimeout(resolve, 1000));
                 }
             }
         }
 
-        function openBasicApi() {
-            const filepath = document.getElementById('filepath').value.trim();
+        async function fetchAndRenderDetail(id, lotteryId) {
+            const btn = document.getElementById('fetch-btn');
+            const targetUrl = `https://api.bilibili.com/x/vas/dlc_act/lottery_home_detail?act_id=${id}&appkey=1d8b6e7d45233436&disable_rcmd=0&sign=341070dd7b86b7ce7c3655972d9824a7&lottery_id=${lotteryId}&ts=${Math.floor(Date.now() / 1000)}&mobi_app=android&platform=android`;
+            let detailData = null;
 
-            if (!filepath) {
-                alert("URL路径不能为空！");
-                return;
+            try {
+                const res1 = await fetchWithRetry(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`, {}, 2, 10000);
+                detailData = await res1.json();
+            } catch (err1) {
+                try {
+                    const res2 = await fetchWithRetry(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`, {}, 2, 10000);
+                    const originData = await res2.json();
+                    detailData = JSON.parse(originData.contents);
+                } catch (err2) {
+                    console.error('两个代理均失败，触发手动兜底逻辑');
+                }
             }
 
-            const id = getParam(filepath, 'act_id') || getParam(filepath, 'id');
+            btn.innerText = '一键智能解析';
+            btn.disabled = false;
 
-            if (!id) {
-                alert("URL路径有误，未找到 act_id 或 id！");
-                return;
+            if (detailData) {
+                document.getElementById('data').value = JSON.stringify(detailData, null, 2);
+                getVideos();
+            } else {
+                alert('自动获取数据失败！即将打开新窗口，请将新窗口中的内容全选复制，粘贴到第 2 步的输入框中并手动点击渲染。');
+                window.open(targetUrl, '_blank');
             }
-
-            const lotteryId = getParam(filepath, 'lottery_id');
-
-            if (lotteryId != 'undefined' && lotteryId != 'null' && lotteryId) {
-                openDetailApi(lotteryId);
-                return;
-            }
-
-            const basicUrl =
-                `https://api.bilibili.com/x/vas/dlc_act/act/basic?act_id=${id}&csrf=`;
-
-            alert("即将打开基础信息接口，请复制页面全部 JSON 并粘贴到第二步！");
-            window.open(basicUrl, '_blank');
         }
 
-        function openDetailApi(LotteryId = null) {
-            try {
-                if (!LotteryId) {
-
-                    const basicDataText = document.getElementById('basic-data').value.trim();
-                    if (!basicDataText) throw new Error("基础 JSON 不能为空！");
-
-                    const basicJson = JSON.parse(basicDataText);
-
-                    LotteryId =
-                        basicJson?.data?.tab_lottery_id ||
-                        basicJson?.data?.lottery_list?.[0]?.lottery_id;
-
-                    if (!LotteryId) throw new Error("未找到有效 lottery_id！");
-
+        function showLotterySelection(id, lotteryList, tabLotteryId) {
+            const panel = document.getElementById('lottery-selection-panel');
+            const container = document.getElementById('lottery-buttons');
+            container.innerHTML = '';
+            lotteryList.forEach(function(lottery) {
+                const b = document.createElement('button');
+                b.innerText = lottery.lottery_name || ('周边 ' + lottery.lottery_id);
+                if (String(lottery.lottery_id) === String(tabLotteryId)) {
+                    b.classList.add('recommended');
+                    b.innerText += ' ★';
                 }
+                b.onclick = function() { selectLottery(id, lottery.lottery_id); };
+                container.appendChild(b);
+            });
+            panel.style.display = 'block';
+            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
 
+        async function selectLottery(id, lotteryId) {
+            const btn = document.getElementById('fetch-btn');
+            btn.innerText = '正在通过代理获取数据...';
+            btn.disabled = true;
+            document.getElementById('lottery-selection-panel').style.display = 'none';
+            await fetchAndRenderDetail(id, lotteryId);
+        }
 
-                const filepath = document.getElementById('filepath').value.trim();
-                const id = getParam(filepath, 'act_id') || getParam(filepath, 'id');
+        async function getData() {
+            const filepath = document.getElementById('filepath').value.trim();
+            if (!filepath) { alert('URL路径不能为空！'); return; }
 
-                const detailUrl =
-                    `https://api.bilibili.com/x/vas/dlc_act/lottery_home_detail?act_id=${id}` +
-                    `&appkey=1d8b6e7d45233436` +
-                    `&disable_rcmd=0` +
-                    `&sign=341070dd7b86b7ce7c3655972d9824a7` +
-                    `&lottery_id=${LotteryId}` +
-                    `&ts=${Math.floor(Date.now() / 1000)}` +
-                    `&mobi_app=android&platform=android`;
+            const id = getParam(filepath, 'act_id') || getParam(filepath, 'id');
+            if (!id) { alert('未找到有效的 act_id 或 id，请检查URL链接！'); return; }
 
-                alert("即将打开媒体数据接口，请复制页面全部 JSON 并粘贴到第三步！");
-                window.open(detailUrl, '_blank');
+            const btn = document.getElementById('fetch-btn');
+            const originalBtnText = btn.innerText;
+            btn.innerText = '正在通过代理获取数据...';
+            btn.disabled = true;
+            document.getElementById('lottery-selection-panel').style.display = 'none';
 
-            } catch (err) {
-                alert("解析基础数据失败：" + err.message);
+            let lotteryId = getParam(filepath, 'lottery_id');
+
+            // 如果没有 lottery_id，尝试从 basic 接口中提取
+            if (!lotteryId || lotteryId == 'undefined' || lotteryId == 'null') {
+                try {
+                    const basicRes = await fetch(`https://api.codetabs.com/v1/proxy?quest=https://api.bilibili.com/x/vas/dlc_act/act/basic?act_id=${id}&csrf=`);
+                    if (!basicRes.ok) throw new Error('基础接口请求失败');
+                    const basicData = await basicRes.json();
+
+                    const lotteryList = basicData?.data?.lottery_list || [];
+                    const tabLotteryId = basicData?.data?.tab_lottery_id;
+
+                    if (lotteryList.length >= 2) {
+                        showLotterySelection(id, lotteryList, tabLotteryId);
+                        btn.innerText = originalBtnText;
+                        btn.disabled = false;
+                        return;
+                    }
+
+                    lotteryId = tabLotteryId || lotteryList[0]?.lottery_id;
+                    if (!lotteryId) throw new Error('未找到有效的 lottery_id');
+                } catch (err) {
+                    alert(`获取作品 lottery_id 失败：${err.message}。请检查链接或稍后重试！`);
+                    btn.innerText = originalBtnText;
+                    btn.disabled = false;
+                    return;
+                }
             }
+
+            await fetchAndRenderDetail(id, lotteryId);
         }
 
         function getVideos() {
@@ -424,55 +458,51 @@
                 if (!data) throw new Error('JSON 数据不能为空！');
 
                 const jsonData = JSON.parse(data);
-                const infos = jsonData?.data;
-                if (!infos || typeof infos !== 'object') {
-                    throw new Error('未找到有效的 data 字段！');
-                }
-
+                const infos = jsonData?.data || {};
                 zipName = infos.name || '数字周边';
 
                 document.getElementById('result-panel').style.display = 'block';
                 document.getElementById('result-title').childNodes[0].nodeValue = `${zipName} `;
 
-                const mergedItemList = Array.isArray(infos.item_list) ? [...infos.item_list] : [];
-                const seenMediaKeys = new Set();
-                const appendExtraItem = (name, image) => {
-                    if (!name || !image) return;
-                    const mediaKey = `${name}__${image}`;
-                    if (seenMediaKeys.has(mediaKey)) return;
-                    seenMediaKeys.add(mediaKey);
-                    mergedItemList.push({ card_info: { card_name: name, card_img: image } });
-                };
+                const itemList = Array.isArray(infos.item_list) ? [...infos.item_list] : [];
+                const seen = new Set();
 
-                mergedItemList.forEach(item => {
+                function addImageItem(cardName, cardImg) {
+                    if (!cardImg) return;
+                    const key = `${cardName || ''}::${cardImg}`;
+                    if (seen.has(key)) return;
+                    seen.add(key);
+                    itemList.push({ card_info: { card_name: cardName, card_img: cardImg } });
+                }
+
+                itemList.forEach(item => {
                     const cardInfo = item?.card_info;
-                    const mediaKey = `${cardInfo?.card_name || ''}__${cardInfo?.video_list?.[0] || cardInfo?.card_img || ''}`;
-                    if (mediaKey !== '__') {
-                        seenMediaKeys.add(mediaKey);
-                    }
+                    if (!cardInfo) return;
+                    const key = `${cardInfo.card_name || ''}::${cardInfo.card_img || cardInfo.video_list?.[0] || ''}`;
+                    seen.add(key);
                 });
 
                 const collectChain = infos.collect_list?.collect_chain;
                 if (Array.isArray(collectChain)) {
                     if (collectChain[0]?.redeem_item_name === '钻石头像背景') {
-                        appendExtraItem(collectChain[0].redeem_item_name, collectChain[0].redeem_item_image);
+                        addImageItem(collectChain[0].redeem_item_name, collectChain[0].redeem_item_image);
                     }
                     if (collectChain[1]?.redeem_item_name?.endsWith('表情包')) {
-                        appendExtraItem(collectChain[1].redeem_item_name, collectChain[1].redeem_item_image);
+                        addImageItem(collectChain[1].redeem_item_name, collectChain[1].redeem_item_image);
                     }
                 }
 
                 const collectInfos = infos.collect_list?.collect_infos;
-                if (Array.isArray(collectInfos) && collectInfos.length > 0) {
+                if (Array.isArray(collectInfos)) {
                     collectInfos.forEach(item => {
-                        const itemName = item?.redeem_item_name;
-                        if (itemName && (itemName.endsWith('表情包') || itemName.endsWith('动态表情包'))) {
-                            appendExtraItem(itemName, item.redeem_item_image);
+                        const name = item?.redeem_item_name;
+                        if (name && (name.endsWith('表情包') || name.endsWith('动态表情包'))) {
+                            addImageItem(name, item.redeem_item_image);
                         }
                     });
                 }
 
-                renderGrid(mergedItemList);
+                renderGrid(itemList);
             } catch (err) {
                 alert(`解析数据出错，请确保输入的是完整的 JSON 格式：${err.message}`);
             }
@@ -486,11 +516,9 @@
 
             itemList.forEach((item, index) => {
                 if (!item?.card_info) return;
-
                 const cardInfo = item.card_info;
                 const videoUrl = cardInfo.video_list?.[0];
                 const imgUrl = cardInfo.card_img;
-
                 if (!videoUrl && !imgUrl) return;
 
                 const wrapper = document.createElement('div');
@@ -498,7 +526,7 @@
 
                 const title = document.createElement('div');
                 title.className = 'title';
-                title.innerText = cardInfo.card_name || `未命名素材`;
+                title.innerText = sanitizeFileName(cardInfo.card_name || `未命名素材 ${index + 1}`);
 
                 if (videoUrl) {
                     const video = document.createElement('video');
@@ -507,7 +535,7 @@
                     video.preload = 'metadata';
                     wrapper.appendChild(video);
                     fileUrls.push(videoUrl);
-                } else if (imgUrl) {
+                } else {
                     const img = document.createElement('img');
                     img.src = imgUrl;
                     img.alt = title.innerText;
@@ -522,32 +550,22 @@
         }
 
         async function downloadFilesAsZip() {
-            if (fileUrls.length === 0) {
-                alert('没有找到可以下载的资源文件！');
-                return;
-            }
+            if (fileUrls.length === 0) { alert('没有找到可以下载的资源文件！'); return; }
+            if (isDownloading) { alert('当前有正在进行的下载任务，请等待其完成后再试！'); return; }
 
-            if (isDownloading) {
-                alert('正在下载中，请稍后再试！频繁下载可能触发风控。');
-                return;
-            }
-
-            // ⭐⭐⭐ 创建下载快照
             const targetUrls = [...fileUrls];
             const targetNames = [...fileNames];
-            const targetZipName = zipName;
+            const targetZipName = sanitizeFileName(zipName, '数字周边');
 
-            // ⭐ 智能去重命名逻辑
             const nameOccurrenceMap = {};
-            const finalFileNames = targetNames.map(name => {
-                let safeName = name.replace(/[\\/:*?"<>|]/g, '');
+            const finalFileNames = targetNames.map((name, index) => {
+                const safeName = sanitizeFileName(name, `未命名素材_${index + 1}`);
                 if (nameOccurrenceMap[safeName] !== undefined) {
                     nameOccurrenceMap[safeName]++;
                     return `${safeName}_${nameOccurrenceMap[safeName]}`;
-                } else {
-                    nameOccurrenceMap[safeName] = 0;
-                    return safeName;
                 }
+                nameOccurrenceMap[safeName] = 0;
+                return safeName;
             });
 
             const progressContainer = document.getElementById('progress-container');
@@ -557,90 +575,59 @@
 
             isDownloading = true;
             progressContainer.style.display = 'block';
+            progressBar.value = 0;
+            progressText.innerText = '准备下载...';
             downloadBtn.disabled = true;
 
             const zip = new JSZip();
-            let processedCount = 0;
-
-            const updateProgress = () => {
-                const percent = targetUrls.length === 0 ? 0 : Math.floor((processedCount / targetUrls.length) * 100);
-                progressBar.value = percent;
-                progressText.innerText =
-                    `正在下载 [${targetZipName}]... 进度 ${percent}% (${processedCount}/${targetUrls.length})`;
-            };
-
-            // ==========================================
-            // ⭐ 核心优化：并发控制队列
-            // 设定最大并发数为 2，并发数高容易导致部分文件下载失败
-            // ==========================================
+            let completedCount = 0;
             const CONCURRENCY_LIMIT = 2;
             let currentIndex = 0;
+
+            const updateProgress = () => {
+                const percent = Math.floor((completedCount / targetUrls.length) * 100);
+                progressBar.value = percent;
+                progressText.innerText = `正在下载 [${targetZipName}]... 进度 ${percent}% (${completedCount}/${targetUrls.length})`;
+            };
 
             const downloadWorker = async () => {
                 while (currentIndex < targetUrls.length) {
                     const index = currentIndex++;
                     const url = targetUrls[index];
-                    let resolvedExt = '.bin';
-
+                    const baseName = finalFileNames[index];
+                    let inferredExt = '.bin';
                     try {
-                        // 使用带有重试和超时机制的 fetch，增加大文件下载的稳定性
                         const response = await fetchWithRetry(url, {}, 3, 20000);
                         const blob = await response.blob();
-
-                        const urlObj = new URL(url);
-                        const match = urlObj.pathname.match(/\.[a-zA-Z0-9]{2,}$/i);
-                        resolvedExt = match ? match[0] : (blob.type.includes('video') ? '.mp4' : '.jpg');
-
-                        // ⭐ 使用去重后的名字
-                        const fileName = `${finalFileNames[index]}${resolvedExt}`;
-                        zip.file(fileName, blob);
+                        inferredExt = inferExtFromUrlOrBlob(url, blob);
+                        zip.file(`${baseName}${inferredExt}`, blob);
                     } catch (error) {
-                        console.error(`文件下载失败: ${url}`, error);
-                        // 即使单张图片/视频失败，也不阻断整个流程，将其记录在 ZIP 中
                         zip.file(
-                            `${finalFileNames[index]}_下载失败记录_${index}.txt`,
-                            `下载失败文件：${finalFileNames[index]}${resolvedExt}
-原链接下载失败: ${url}
-错误信息: ${error.message}`
+                            `${baseName}_下载失败记录_${index + 1}.txt`,
+                            `下载失败文件：${baseName}${inferredExt}\n原链接：${url}\n错误信息：${error.message}`
                         );
                     } finally {
-                        processedCount++;
+                        completedCount++;
                         updateProgress();
                     }
                 }
             };
 
             try {
-                updateProgress();
-
-                // 启动并发限制数量
-                const workers = [];
-                for (let i = 0; i < CONCURRENCY_LIMIT; i++) {
-                    workers.push(downloadWorker());
-                }
-
-                await Promise.all(workers);
+                await Promise.all(Array.from({ length: Math.min(CONCURRENCY_LIMIT, targetUrls.length) }, () => downloadWorker()));
                 progressText.innerText = '资源下载完成，正在拼命压缩中，请稍候...';
-
-                await new Promise(resolve => setTimeout(resolve, 100));
                 const content = await zip.generateAsync({ type: 'blob' });
                 saveAs(content, `${targetZipName}.zip`);
-
-                progressBar.value = 100;
                 progressText.innerText = '压缩完毕！文件已保存。';
-
+            } catch (error) {
+                alert(`打包下载失败：${error.message}`);
+            } finally {
                 setTimeout(() => {
                     progressContainer.style.display = 'none';
                     progressBar.value = 0;
                     isDownloading = false;
                     downloadBtn.disabled = false;
-                }, 3000);
-
-            } catch (error) {
-                alert(`打包下载失败：${error.message}`);
-                progressText.innerText = `打包下载失败：${error.message}`;
-                isDownloading = false;
-                downloadBtn.disabled = false;
+                }, 1500);
             }
         }
     </script>

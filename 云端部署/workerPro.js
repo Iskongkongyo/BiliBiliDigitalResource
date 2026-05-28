@@ -737,6 +737,11 @@ const htmlContent = `
 		progress::-webkit-progress-bar { background-color: #f1f5f9; }
 		progress::-webkit-progress-value { background-color: var(--primary); }
 		#progressText { color: var(--primary); font-weight: bold; font-size: 0.9em; }
+		#lottery-selection-panel { display:none; margin-bottom:24px; border:1px solid var(--primary); border-radius:var(--border-radius); padding:20px; background:linear-gradient(135deg, #f0fdf4, #ecfdf5); }
+		#lottery-buttons { display:flex; gap:12px; flex-wrap:wrap; margin-top:14px; }
+		#lottery-buttons button { background:linear-gradient(135deg, #10b981, #059669); padding:12px 22px; border-radius:10px; font-size:14px; min-width:120px; }
+		#lottery-buttons button:hover { background:linear-gradient(135deg, #059669, #047857); }
+		#lottery-buttons button.recommended { box-shadow: 0 0 0 2px #fbbf24, 0 4px 16px rgba(251,191,36,0.35); position:relative; }
 	</style>
 </head>
 <body>
@@ -758,6 +763,11 @@ const htmlContent = `
 					<button id="fetch-btn" onclick="getData()">一键智能解析</button>
 				</div>
 			</div>
+			<div id="lottery-selection-panel">
+				<div class="step-title"><span class="step-badge">⚡</span> 检测到多个数字周边</div>
+				<p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">该活动包含多个数字周边，请选择要提取的：</p>
+				<div id="lottery-buttons"></div>
+			</div>
 			<div id="manual-fallback-panel" class="step-container" style="display:none; border:1px solid var(--border-color); border-radius:12px; padding:16px; background:#fafafa;">
 				<div class="step-title"><span class="step-badge">2</span> 自动失败，切换手动模式</div>
 				<p id="manual-error-tip" style="color:#b91c1c; font-size:0.92em; margin-top:0;"> 自动获取失败，请按下面步骤手动继续。 </p>
@@ -774,6 +784,10 @@ const htmlContent = `
 					<div style="margin-top: 10px; text-align: right;">
 						<button type="button" onclick="openDetailFromBasic()">解析基础数据并打开媒体接口</button>
 					</div>
+				</div>
+				<div id="manual-lottery-selection" style="display:none; margin-bottom:16px; padding:14px; border:1px solid var(--primary); border-radius:10px; background:linear-gradient(135deg, #f0fdf4, #ecfdf5);">
+					<div style="font-weight:bold; margin-bottom:8px; color:var(--primary);">⚡ 检测到多个数字周边，请选择要查看的数字周边：</div>
+					<div id="manual-lottery-buttons" style="display:flex; gap:10px; flex-wrap:wrap;"></div>
 				</div>
 				<div>
 					<div style="font-weight:bold; margin-bottom:8px; color:var(--text-main);">2.2 获取媒体数据</div>
@@ -935,10 +949,37 @@ const htmlContent = `
 		if (!basicText) throw new Error('请先粘贴基础接口 JSON');
 		
 		const basicJson = JSON.parse(basicText);
-		const lotteryId =
-		    basicJson?.data?.tab_lottery_id ||
-		    basicJson?.data?.lottery_list?.[0]?.lottery_id;
+		const lotteryList = basicJson?.data?.lottery_list || [];
+		const tabLotteryId = basicJson?.data?.tab_lottery_id;
 		
+		// 多个数字周边 → 显示选择按钮
+		if (lotteryList.length >= 2) {
+		    const selPanel = document.getElementById('manual-lottery-selection');
+		    const btnContainer = document.getElementById('manual-lottery-buttons');
+		    btnContainer.innerHTML = '';
+		    lotteryList.forEach(function(lottery) {
+		        const b = document.createElement('button');
+		        b.innerText = lottery.lottery_name || ('周边 ' + lottery.lottery_id);
+		        if (String(lottery.lottery_id) === String(tabLotteryId)) {
+		            b.classList.add('recommended');
+		            b.innerText += ' ★';
+		        }
+		        b.onclick = function() {
+		            const detailUrl = buildDetailApiUrl(actId, lottery.lottery_id);
+		            document.getElementById('detail-url').value = detailUrl;
+		            selPanel.style.display = 'none';
+		            alert('已选择「' + (lottery.lottery_name || lottery.lottery_id) + '」，已生成媒体接口地址，即将打开新窗口。');
+		            window.open(detailUrl, '_blank', 'noopener,noreferrer');
+		        };
+		        btnContainer.appendChild(b);
+		    });
+		    selPanel.style.display = 'block';
+		    selPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		    return;
+		}
+		
+		// 单个周边 → 直接继续
+		const lotteryId = tabLotteryId || lotteryList[0]?.lottery_id;
 		if (!lotteryId) throw new Error('基础 JSON 中未找到有效 lottery_id');
 		
 		const detailUrl = buildDetailApiUrl(actId, lotteryId);
@@ -1013,6 +1054,61 @@ const htmlContent = `
 		        btn.disabled = false;
 		    }
 		}
+		async function fetchAndRenderDetail(filepath, lotteryId) {
+		    const finalPath = normalizeFilepath(filepath, lotteryId);
+		    const detailRes = await fetch('/api/detail', {
+		        method: 'POST',
+		        headers: { 'Content-Type': 'application/json' },
+		        body: JSON.stringify({ input: finalPath })
+		    });
+		    const detailText = await detailRes.text();
+		    let detailData;
+		    try {
+		        detailData = JSON.parse(detailText);
+		    } catch (e) {
+		        throw new Error('detail 接口返回非 JSON：HTTP'+ detailRes.status + '，响应前300字：'+ detailText.slice(0, 300));
+		    }
+		    if (!detailRes.ok) {
+		        throw new Error(detailData?.error || '详情接口请求失败!');
+		    }
+		    document.getElementById('data').value = JSON.stringify(detailData, null, 2);
+		    getVideos();
+		}
+		function showLotterySelection(actId, lotteryList, tabLotteryId) {
+		    const panel = document.getElementById('lottery-selection-panel');
+		    const container = document.getElementById('lottery-buttons');
+		    container.innerHTML = '';
+		    lotteryList.forEach(function(lottery) {
+		        const b = document.createElement('button');
+		        b.innerText = lottery.lottery_name || ('周边 ' + lottery.lottery_id);
+		        if (String(lottery.lottery_id) === String(tabLotteryId)) {
+		            b.classList.add('recommended');
+		            b.innerText += ' ★';
+		        }
+		        b.onclick = function() { selectLottery(actId, lottery.lottery_id); };
+		        container.appendChild(b);
+		    });
+		    panel.style.display = 'block';
+		    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		}
+		async function selectLottery(actId, lotteryId) {
+		    const btn = document.getElementById('fetch-btn');
+		    const originalBtnText = btn.innerText;
+		    btn.innerText = '正在获取数据...';
+		    btn.disabled = true;
+		    document.getElementById('lottery-selection-panel').style.display = 'none';
+		    try {
+		        const filepath = document.getElementById('filepath').value.trim();
+		        await fetchAndRenderDetail(filepath, lotteryId);
+		    } catch (err) {
+		        const msg = err?.message || '未知错误';
+		        showManualFallback(msg, document.getElementById('filepath').value.trim());
+		        alert('获取失败：' + msg);
+		    } finally {
+		        btn.innerText = originalBtnText;
+		        btn.disabled = false;
+		    }
+		}
 		async function getData() {
 		    const filepath = document.getElementById('filepath').value.trim();
 		    if (!filepath) {
@@ -1023,14 +1119,16 @@ const htmlContent = `
 		    const btn = document.getElementById('fetch-btn');
 		    const originalBtnText = btn.innerText;
 		    const manualPanel = document.getElementById('manual-fallback-panel');
+		    const lotteryPanel = document.getElementById('lottery-selection-panel');
 		    const basicDataBox = document.getElementById('basic-data');
 		    const detailUrlBox = document.getElementById('detail-url');
 		
 		    btn.innerText = '正在自动解析...';
 		    btn.disabled = true;
 		
-		    // 每次重新尝试自动解析前，先清空上次手动状态
+		    // 每次重新尝试自动解析前，先清空上次状态
 		    manualPanel.style.display = 'none';
+		    lotteryPanel.style.display = 'none';
 		    basicDataBox.value = '';
 		    detailUrlBox.value = '';
 		
@@ -1057,38 +1155,25 @@ const htmlContent = `
 		        throw new Error(basicData?.error || '基础接口请求失败!');
 		    }
 		
-		    lotteryId =
-		        basicData?.data?.tab_lottery_id ||
-		        basicData?.data?.lottery_list?.[0]?.lottery_id;
+		    const lotteryList = basicData?.data?.lottery_list || [];
+		    const tabLotteryId = basicData?.data?.tab_lottery_id;
 		
+		    // 多个数字周边 → 展示选择按钮，等待用户点击
+		    if (lotteryList.length >= 2) {
+		        showLotterySelection(id, lotteryList, tabLotteryId);
+		        btn.innerText = originalBtnText;
+		        btn.disabled = false;
+		        return;
+		    }
+		
+		    // 单个周边 → 直接继续
+		    lotteryId = tabLotteryId || lotteryList[0]?.lottery_id;
 		    if (!lotteryId) {
 		        throw new Error('未找到有效的 lottery_id!');
 		    }
 		}
 		
-		const finalPath = normalizeFilepath(filepath, lotteryId);
-		
-		const detailRes = await fetch('/api/detail', {
-		    method: 'POST',
-		    headers: { 'Content-Type': 'application/json' },
-		    body: JSON.stringify({ input: finalPath })
-		});
-		
-		const detailText = await detailRes.text();
-		
-		let detailData;
-		try {
-		    detailData = JSON.parse(detailText);
-		} catch (e) {
-		    throw new Error('detail 接口返回非 JSON：HTTP'+ detailRes.status + '，响应前300字：'+ detailText.slice(0, 300));
-		}
-		
-		if (!detailRes.ok) {
-		    throw new Error(detailData?.error || '详情接口请求失败!');
-		}
-		
-		document.getElementById('data').value = JSON.stringify(detailData, null, 2);
-		getVideos();
+		await fetchAndRenderDetail(filepath, lotteryId);
 		
 		    } catch (err) {
 		const msg = err?.message || '未知错误';
