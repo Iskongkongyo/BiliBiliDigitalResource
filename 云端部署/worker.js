@@ -725,9 +725,18 @@ const htmlContent = `
 		button:hover { background: #059669; transform: translateY(-2px); }
 		button:disabled { background: #94a3b8; cursor: not-allowed; box-shadow: none; transform: none; }
 		#videos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; margin-top: 20px; }
-		.media-card { background: #ffffff; border-radius: var(--border-radius); overflow: hidden; display: flex; flex-direction: column; align-items: center; border: 1px solid var(--border-color); transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s; }
+		.media-card { background: #ffffff; border-radius: var(--border-radius); overflow: hidden; display: flex; flex-direction: column; align-items: center; align-self: start; border: 1px solid var(--border-color); transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s; }
 		.media-card:hover { transform: scale(1.02); border-color: var(--primary); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
 		.media-card video, .media-card img { width: 100%; height: 380px; object-fit: cover; background: #f3f4f6; }
+		.laser-preview { width: 100%; background: #0f172a; }
+		.laser-stage { position: relative; width: 100%; aspect-ratio: 2 / 3; overflow: hidden; background: #0f172a; touch-action: none; cursor: crosshair; }
+		.laser-stage canvas { display: block; width: 100%; height: 100%; }
+		.laser-badge { position: absolute; top: 10px; left: 10px; z-index: 2; padding: 4px 9px; border: 1px solid rgba(255,255,255,0.55); border-radius: 999px; color: #fff; background: rgba(15,23,42,0.68); box-shadow: 0 4px 14px rgba(0,0,0,0.2); backdrop-filter: blur(6px); font-size: 12px; font-weight: bold; pointer-events: none; }
+		.laser-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; color: #e2e8f0; background: #0f172a; font-size: 13px; text-align: center; }
+		.laser-actions { display: flex; gap: 8px; padding: 9px; background: #f8fafc; border-top: 1px solid var(--border-color); }
+		.laser-actions button { flex: 1; padding: 7px 8px; border-radius: 6px; font-size: 12px; box-shadow: none; }
+		.laser-actions .secondary { color: var(--text-main); background: #e2e8f0; }
+		.laser-actions .secondary:hover { background: #cbd5e1; }
 		 .media-card video:fullscreen { object-fit: contain; background: #000; }
 		.media-card video:-webkit-full-screen { object-fit: contain; background: #000; }
 		.media-card video:-moz-full-screen { object-fit: contain; background: #000; }
@@ -737,6 +746,14 @@ const htmlContent = `
 		progress::-webkit-progress-bar { background-color: #f1f5f9; }
 		progress::-webkit-progress-value { background-color: var(--primary); }
 		#progressText { color: var(--primary); font-weight: bold; font-size: 0.9em; }
+		.result-title-area { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; }
+		.result-hints { color: var(--text-muted); font-size: 15px; font-weight: bold; line-height: 1.45; text-align: left; }
+		.result-hints span { display: block; }
+		.result-hints span + span { margin-top: 2px; }
+		@media (max-width: 640px) {
+			#result-title { align-items: flex-start; flex-direction: column; gap: 12px; }
+			.result-title-area { align-items: flex-start; margin-left: 0; }
+		}
 		#lottery-selection-panel { display:none; margin-bottom:24px; border:1px solid var(--primary); border-radius:var(--border-radius); padding:20px; background:linear-gradient(135deg, #f0fdf4, #ecfdf5); }
 		#lottery-buttons { display:flex; gap:12px; flex-wrap:wrap; margin-top:14px; }
 		#lottery-buttons button { background:linear-gradient(135deg, #10b981, #059669); padding:12px 22px; border-radius:10px; font-size:14px; min-width:120px; }
@@ -809,7 +826,16 @@ const htmlContent = `
 			</div>
 		</div>
 		<div id="result-panel" class="panel" style="display: none;">
-			<h2 id="result-title">提取结果 <button id="download-btn" onclick="downloadFilesAsZip()">打包下载全部</button></h2>
+			<h2 id="result-title">
+				<span class="result-title-area">
+					<span id="result-name">提取结果</span>
+					<span class="result-hints">
+						<span>快捷键 S：鼠标位于某个数字周边上时，可单独下载该图片、视频或当前镭射效果。</span>
+						<span>镭射预览仅供参考，实际效果可能与 B 站存在差异。</span>
+					</span>
+				</span>
+				<button id="download-btn" onclick="downloadFilesAsZip()">打包下载全部</button>
+			</h2>
 			<div id="progress-container" class="progress-wrapper"><progress id="download-progress" max="100" value="0"></progress>
 				<div id="progressText">准备下载...</div>
 			</div>
@@ -822,7 +848,20 @@ const htmlContent = `
 		let zipName = '数字周边';
 		let fileUrls = [];
 		let fileNames = [];
+		let laserControlFiles = [];
 		let isDownloading = false;
+		const laserRenderers = new Set();
+		const singleDownloadsInProgress = new WeakSet();
+		let laserAnimationFrame = null;
+		const laserVisibilityObserver = typeof IntersectionObserver === 'function'
+		    ? new IntersectionObserver(entries => {
+		        entries.forEach(entry => {
+		            if (entry.target._laserRenderer) {
+		                entry.target._laserRenderer.visible = entry.isIntersecting;
+		            }
+		        });
+		    }, { rootMargin: '200px 0px' })
+		    : null;
 		
 		function getParam(url, param) {
 		    try { return new URL(url).searchParams.get(param); } catch (e) { return null; }
@@ -852,6 +891,57 @@ const htmlContent = `
 		    if (mime.includes('image/jpeg')) return '.jpg';
 		    return mime.startsWith('video/') ? '.mp4' : '.jpg';
 		}
+		function saveLaserPreview(renderer, titleText) {
+		    return new Promise((resolve, reject) => {
+		        if (!renderer?.ready) {
+		            reject(new Error('镭射预览尚未加载完成'));
+		            return;
+		        }
+		        drawLaserFrame(renderer, performance.now());
+		        renderer.canvas.toBlob(blob => {
+		            if (!blob) {
+		                reject(new Error('无法生成当前镭射预览'));
+		                return;
+		            }
+		            saveAs(blob, sanitizeFileName(titleText, '镭射预览') + '_镭射预览.png');
+		            resolve();
+		        }, 'image/png');
+		    });
+		}
+		async function downloadSingleCard(card) {
+		    if (!card || singleDownloadsInProgress.has(card)) return;
+		    const downloadInfo = card._downloadInfo;
+		    const renderer = card.querySelector('.laser-stage')?._laserRenderer;
+		    singleDownloadsInProgress.add(card);
+		    try {
+		        if (renderer?.enabled) {
+		            await saveLaserPreview(renderer, downloadInfo?.title);
+		            return;
+		        }
+		        if (!downloadInfo?.url) throw new Error('没有找到可下载的资源');
+		        const response = await fetchWithRetry(downloadInfo.url, {
+		            referrerPolicy: 'no-referrer'
+		        }, 3, 30000);
+		        const blob = await response.blob();
+		        const extension = inferExtFromUrlOrBlob(downloadInfo.url, blob);
+		        saveAs(blob, sanitizeFileName(downloadInfo.title, '未命名素材') + extension);
+		    } catch (error) {
+		        console.error('单个资源下载失败：', error);
+		        alert('单个资源下载失败：' + error.message);
+		    } finally {
+		        singleDownloadsInProgress.delete(card);
+		    }
+		}
+		document.addEventListener('keydown', event => {
+		    const target = event.target;
+		    const isEditing = target instanceof HTMLElement &&
+		        (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
+		    if (event.code !== 'KeyS' || event.repeat || event.ctrlKey || event.altKey || event.metaKey || isEditing) return;
+		    const hoveredCard = document.querySelector('.media-card:hover');
+		    if (!hoveredCard) return;
+		    event.preventDefault();
+		    downloadSingleCard(hoveredCard);
+		});
 		async function fetchWithRetry(url, options = {}, retries = 3, timeoutMs = 15000) {
 		    for (let i = 0; i < retries; i++) {
 		        const controller = new AbortController();
@@ -1192,7 +1282,7 @@ const htmlContent = `
 		        const infos = jsonData?.data || {};
 		        zipName = infos.name || '数字周边';
 		        document.getElementById('result-panel').style.display = 'block';
-		        document.getElementById('result-title').childNodes[0].nodeValue = \`\${zipName} \`;
+		        document.getElementById('result-name').innerText = zipName;
 		        const itemList = Array.isArray(infos.item_list) ? [...infos.item_list] : [];
 		        const seen = new Set();
 		        function addImageItem(cardName, cardImg) {
@@ -1225,11 +1315,271 @@ const htmlContent = `
 		        alert(\`解析数据出错，请确保输入的是完整的 JSON 格式：\${err.message}\`);
 		    }
 		}
+		function parseShineConfig(metaInfo) {
+		    const defaults = {
+		        laser_intensity: 1,
+		        skin_protection: 1,
+		        cloth_boost: 0.68,
+		        hue_start: 0,
+		        hue_range: 1
+		    };
+		    try {
+		        const rawConfig = metaInfo?.shine_effect_config;
+		        const parsed = typeof rawConfig === 'string' ? JSON.parse(rawConfig) : rawConfig;
+		        return { ...defaults, ...(parsed || {}) };
+		    } catch (error) {
+		        console.warn('镭射参数解析失败，将使用默认值：', error);
+		        return defaults;
+		    }
+		}
+		function loadCorsImage(url) {
+		    const load = source => new Promise((resolve, reject) => {
+		        const image = new Image();
+		        image.crossOrigin = 'anonymous';
+		        image.referrerPolicy = 'no-referrer';
+		        image.onload = () => resolve(image);
+		        image.onerror = () => reject(new Error('图片加载失败：' + source));
+		        image.src = source;
+		    });
+		    return load(url).catch(directError => {
+		        console.warn('图片直连加载失败，尝试 Worker 代理：', directError);
+		        return load('/proxy?url=' + encodeURIComponent(url));
+		    });
+		}
+		function positiveModulo(value, divisor) {
+		    return ((value % divisor) + divisor) % divisor;
+		}
+		function drawLaserFrame(renderer, timestamp = 0) {
+		    if (!renderer.ready) return;
+		    const {
+		        canvas, context, baseImage, maskCanvas, effectCanvas,
+		        config, pointerX, pointerY, enabled
+		    } = renderer;
+		    const width = canvas.width;
+		    const height = canvas.height;
+		    context.globalAlpha = 1;
+		    context.globalCompositeOperation = 'source-over';
+		    context.clearRect(0, 0, width, height);
+		    context.drawImage(baseImage, 0, 0, width, height);
+		    if (!enabled) return;
+
+		    const effectContext = effectCanvas.getContext('2d');
+		    const animatedPhase = positiveModulo(timestamp * 0.000045 + pointerX * 0.55 + pointerY * 0.2, 1);
+		    const angle = (-55 + pointerX * 70) * Math.PI / 180;
+		    const centerX = width / 2;
+		    const centerY = height / 2;
+		    const radius = Math.hypot(width, height) * 0.72;
+		    const x0 = centerX - Math.cos(angle) * radius;
+		    const y0 = centerY - Math.sin(angle) * radius;
+		    const x1 = centerX + Math.cos(angle) * radius;
+		    const y1 = centerY + Math.sin(angle) * radius;
+
+		    effectContext.globalAlpha = 1;
+		    effectContext.globalCompositeOperation = 'source-over';
+		    effectContext.clearRect(0, 0, width, height);
+		    const rainbow = effectContext.createLinearGradient(x0, y0, x1, y1);
+		    const colorStops = 10;
+		    for (let index = 0; index <= colorStops; index++) {
+		        const position = index / colorStops;
+		        const hueProgress = positiveModulo(position + animatedPhase, 1);
+		        const hue = positiveModulo(
+		            (Number(config.hue_start) + hueProgress * Number(config.hue_range)) * 360,
+		            360
+		        );
+		        rainbow.addColorStop(position, 'hsl(' + hue + ' 94% 58%)');
+		    }
+		    effectContext.fillStyle = rainbow;
+		    effectContext.fillRect(0, 0, width, height);
+		    effectContext.globalCompositeOperation = 'destination-in';
+		    effectContext.drawImage(maskCanvas, 0, 0);
+
+		    const laserIntensity = Math.max(0, Number(config.laser_intensity) || 0);
+		    context.globalCompositeOperation = 'source-over';
+		    context.globalAlpha = Math.min(0.48, 0.16 + laserIntensity * 0.2);
+		    context.drawImage(effectCanvas, 0, 0);
+		    context.globalCompositeOperation = 'screen';
+		    context.globalAlpha = Math.min(0.38, 0.1 + laserIntensity * 0.16);
+		    context.drawImage(effectCanvas, 0, 0);
+
+		    effectContext.globalCompositeOperation = 'source-over';
+		    effectContext.clearRect(0, 0, width, height);
+		    const shine = effectContext.createLinearGradient(x0, y0, x1, y1);
+		    const shineCenter = positiveModulo(animatedPhase * 1.35, 1);
+		    const shineWidth = 0.075;
+		    const shineStops = [
+		        [0, 'rgba(255,255,255,0)'],
+		        [Math.max(0, shineCenter - shineWidth), 'rgba(255,255,255,0)'],
+		        [shineCenter, 'rgba(255,255,255,0.95)'],
+		        [Math.min(1, shineCenter + shineWidth), 'rgba(255,255,255,0)'],
+		        [1, 'rgba(255,255,255,0)']
+		    ];
+		    shineStops
+		        .sort((left, right) => left[0] - right[0])
+		        .forEach(([position, color]) => shine.addColorStop(position, color));
+		    effectContext.fillStyle = shine;
+		    effectContext.fillRect(0, 0, width, height);
+		    effectContext.globalCompositeOperation = 'destination-in';
+		    effectContext.drawImage(maskCanvas, 0, 0);
+		    context.globalCompositeOperation = 'screen';
+		    context.globalAlpha = Math.min(0.38, 0.12 + laserIntensity * 0.12);
+		    context.drawImage(effectCanvas, 0, 0);
+		    context.globalAlpha = 1;
+		    context.globalCompositeOperation = 'source-over';
+		}
+		function startLaserAnimation() {
+		    if (laserAnimationFrame !== null) return;
+		    const animate = timestamp => {
+		        laserRenderers.forEach(renderer => {
+		            if (renderer.enabled && renderer.ready && renderer.visible && renderer.canvas.isConnected) {
+		                drawLaserFrame(renderer, timestamp);
+		            }
+		        });
+		        laserAnimationFrame = requestAnimationFrame(animate);
+		    };
+		    laserAnimationFrame = requestAnimationFrame(animate);
+		}
+		function createLaserPreview(cardInfo, titleText) {
+		    const metaInfo = cardInfo.meta_info || {};
+		    const config = parseShineConfig(metaInfo);
+		    const preview = document.createElement('div');
+		    preview.className = 'laser-preview';
+		    const stage = document.createElement('div');
+		    stage.className = 'laser-stage';
+		    const canvas = document.createElement('canvas');
+		    canvas.width = 414;
+		    canvas.height = 621;
+		    canvas.setAttribute('aria-label', titleText + ' 镭射款动态预览');
+		    const badge = document.createElement('div');
+		    badge.className = 'laser-badge';
+		    badge.innerText = '✦ 实验性镭射预览';
+		    const status = document.createElement('div');
+		    status.className = 'laser-status';
+		    status.innerText = '正在加载卡面与镭射控制图...';
+		    const actions = document.createElement('div');
+		    actions.className = 'laser-actions';
+		    const toggleButton = document.createElement('button');
+		    toggleButton.type = 'button';
+		    toggleButton.innerText = '关闭镭射';
+		    const saveButton = document.createElement('button');
+		    saveButton.type = 'button';
+		    saveButton.className = 'secondary';
+		    saveButton.innerText = '保存当前效果';
+		    saveButton.disabled = true;
+
+		    actions.appendChild(toggleButton);
+		    actions.appendChild(saveButton);
+		    stage.appendChild(canvas);
+		    stage.appendChild(badge);
+		    stage.appendChild(status);
+		    preview.appendChild(stage);
+		    preview.appendChild(actions);
+
+		    const maskCanvas = document.createElement('canvas');
+		    const effectCanvas = document.createElement('canvas');
+		    const renderer = {
+		        stage,
+		        canvas,
+		        context: canvas.getContext('2d'),
+		        maskCanvas,
+		        effectCanvas,
+		        baseImage: null,
+		        config,
+		        pointerX: 0.5,
+		        pointerY: 0.5,
+		        enabled: true,
+		        visible: true,
+		        ready: false
+		    };
+		    laserRenderers.add(renderer);
+		    stage._laserRenderer = renderer;
+		    laserVisibilityObserver?.observe(stage);
+
+		    const updatePointer = event => {
+		        const rect = stage.getBoundingClientRect();
+		        renderer.pointerX = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+		        renderer.pointerY = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height));
+		    };
+		    stage.addEventListener('pointermove', updatePointer);
+		    toggleButton.addEventListener('click', () => {
+		        renderer.enabled = !renderer.enabled;
+		        toggleButton.innerText = renderer.enabled ? '关闭镭射' : '开启镭射';
+		        badge.style.display = renderer.enabled ? 'block' : 'none';
+		        drawLaserFrame(renderer, performance.now());
+		    });
+		    saveButton.addEventListener('click', async () => {
+		        try {
+		            await saveLaserPreview(renderer, titleText);
+		        } catch (error) {
+		            alert('当前镭射预览保存失败：' + error.message);
+		        }
+		    });
+
+		    Promise.all([
+		        loadCorsImage(cardInfo.card_img),
+		        loadCorsImage(metaInfo.upgrade_cover_url)
+		    ]).then(([baseImage, coverImage]) => {
+		        const renderWidth = Math.min(480, baseImage.naturalWidth || baseImage.width);
+		        const renderHeight = Math.round(
+		            renderWidth * (baseImage.naturalHeight || baseImage.height) /
+		            (baseImage.naturalWidth || baseImage.width)
+		        );
+		        canvas.width = renderWidth;
+		        canvas.height = renderHeight;
+		        maskCanvas.width = renderWidth;
+		        maskCanvas.height = renderHeight;
+		        effectCanvas.width = renderWidth;
+		        effectCanvas.height = renderHeight;
+
+		        const maskContext = maskCanvas.getContext('2d', { willReadFrequently: true });
+		        maskContext.drawImage(coverImage, 0, 0, renderWidth, renderHeight);
+		        const maskPixels = maskContext.getImageData(0, 0, renderWidth, renderHeight);
+		        const skinProtection = Math.max(0, Number(config.skin_protection) || 0);
+		        const clothBoost = Math.max(0, Number(config.cloth_boost) || 0);
+		        const maskExponent = 0.82 + skinProtection * 0.34;
+		        const maskBoost = 0.72 + clothBoost * 0.42;
+		        for (let offset = 0; offset < maskPixels.data.length; offset += 4) {
+		            const luminance = (
+		                maskPixels.data[offset] * 0.2126 +
+		                maskPixels.data[offset + 1] * 0.7152 +
+		                maskPixels.data[offset + 2] * 0.0722
+		            ) / 255;
+		            const alpha = Math.min(1, Math.pow(luminance, maskExponent) * maskBoost);
+		            maskPixels.data[offset] = 255;
+		            maskPixels.data[offset + 1] = 255;
+		            maskPixels.data[offset + 2] = 255;
+		            maskPixels.data[offset + 3] = Math.round(alpha * 255);
+		        }
+		        maskContext.putImageData(maskPixels, 0, 0);
+		        renderer.baseImage = baseImage;
+		        renderer.ready = true;
+		        status.remove();
+		        saveButton.disabled = false;
+		        drawLaserFrame(renderer, performance.now());
+		        startLaserAnimation();
+		    }).catch(error => {
+		        console.error('镭射预览加载失败：', error);
+		        renderer.enabled = false;
+		        status.innerText = '镭射预览加载失败，将显示普通卡面。\\n' + error.message;
+		        canvas.style.display = 'none';
+		        const fallbackImage = document.createElement('img');
+		        fallbackImage.src = cardInfo.card_img;
+		        fallbackImage.alt = titleText;
+		        fallbackImage.referrerPolicy = 'no-referrer';
+		        stage.insertBefore(fallbackImage, badge);
+		        badge.style.display = 'none';
+		        toggleButton.disabled = true;
+		        saveButton.disabled = true;
+		    });
+		    return preview;
+		}
 		function renderGrid(itemList) {
 		    const grid = document.getElementById('videos-grid');
 		    grid.innerHTML = '';
 		    fileUrls = [];
 		    fileNames = [];
+		    laserControlFiles = [];
+		    laserRenderers.forEach(renderer => laserVisibilityObserver?.unobserve(renderer.stage));
+		    laserRenderers.clear();
 		
 		    itemList.forEach((item, index) => {
 		        if (!item || !item.card_info) return;
@@ -1237,6 +1587,7 @@ const htmlContent = `
 		        const cardInfo = item.card_info;
 		        const rawVideoUrl = cardInfo.video_list && cardInfo.video_list[0];
 		        const rawImgUrl = cardInfo.card_img;
+		        const upgradeCoverUrl = cardInfo.meta_info?.upgrade_cover_url;
 		
 		        if (!rawVideoUrl && !rawImgUrl) return;
 		
@@ -1246,6 +1597,10 @@ const htmlContent = `
 		        const title = document.createElement('div');
 		        title.className = 'title';
 		        title.innerText = sanitizeFileName(cardInfo.card_name || ('未命名素材 ' + (index + 1)));
+		        wrapper._downloadInfo = {
+		            title: title.innerText,
+		            url: rawVideoUrl || rawImgUrl
+		        };
 		
 		        if (rawVideoUrl) {
 		            const video = document.createElement('video');
@@ -1264,6 +1619,17 @@ const htmlContent = `
 		                mediaType: 'video',
 		                viaProxy: false
 		            });
+		        } else if (rawImgUrl && upgradeCoverUrl) {
+		            wrapper.classList.add('has-laser');
+		            wrapper.appendChild(createLaserPreview(cardInfo, title.innerText));
+		            fileUrls.push(rawImgUrl);
+		            fileNames.push({
+		                name: title.innerText,
+		                originalUrl: rawImgUrl,
+		                fetchUrl: rawImgUrl,
+		                mediaType: 'image',
+		                viaProxy: false
+		            });
 		        } else {
 		            const img = document.createElement('img');
 		            img.src = rawImgUrl;
@@ -1280,6 +1646,15 @@ const htmlContent = `
 		                viaProxy: false
 		            });
 		        }
+		        if (upgradeCoverUrl) {
+		            laserControlFiles.push({
+		                name: title.innerText,
+		                originalUrl: upgradeCoverUrl,
+		                fetchUrl: upgradeCoverUrl,
+		                mediaType: 'laser-control',
+		                viaProxy: false
+		            });
+		        }
 		
 		        wrapper.appendChild(title);
 		        grid.appendChild(wrapper);
@@ -1290,17 +1665,33 @@ const htmlContent = `
 		    if (isDownloading) { alert('当前有正在进行的下载任务，请等待其完成后再试！'); return; }
 		    const targetUrls = [...fileUrls];
 		    const targetData = [...fileNames];
+		    const targetLaserControls = laserControlFiles.map(item => ({ ...item }));
 		    const targetZipName = sanitizeFileName(zipName, '数字周边');
-		    const nameOccurrenceMap = {};
-		    const finalFileNames = targetData.map((item, index) => {
-		        const safeName = sanitizeFileName(item?.name, \`未命名素材_\${index + 1}\`);
-		        if (nameOccurrenceMap[safeName] !== undefined) {
-		            nameOccurrenceMap[safeName]++;
-		            return \`\${safeName}_\${nameOccurrenceMap[safeName]}\`;
-		        }
-		        nameOccurrenceMap[safeName] = 0;
-		        return safeName;
-		    });
+		    const createUniqueFileNames = (items, fallbackPrefix) => {
+		        const nameOccurrenceMap = {};
+		        return items.map((item, index) => {
+		            const safeName = sanitizeFileName(item?.name, fallbackPrefix + '_' + (index + 1));
+		            if (nameOccurrenceMap[safeName] !== undefined) {
+		                nameOccurrenceMap[safeName]++;
+		                return safeName + '_' + nameOccurrenceMap[safeName];
+		            }
+		            nameOccurrenceMap[safeName] = 0;
+		            return safeName;
+		        });
+		    };
+		    const finalFileNames = createUniqueFileNames(targetData, '未命名素材');
+		    const finalLaserControlNames = createUniqueFileNames(targetLaserControls, '未命名镭射效果控制图');
+		    const downloadTasks = targetData.map((meta, index) => ({
+		        currentUrl: targetUrls[index],
+		        meta,
+		        baseName: finalFileNames[index],
+		        directory: ''
+		    })).concat(targetLaserControls.map((meta, index) => ({
+		        currentUrl: meta.fetchUrl || meta.originalUrl,
+		        meta,
+		        baseName: finalLaserControlNames[index],
+		        directory: '镭射效果控制图/'
+		    })));
 		    const progressContainer = document.getElementById('progress-container');
 		    const progressBar = document.getElementById('download-progress');
 		    const progressText = document.getElementById('progressText');
@@ -1315,20 +1706,22 @@ const htmlContent = `
 		    const CONCURRENCY_LIMIT = 2;
 		    let currentIndex = 0;
 		    const updateProgress = () => {
-		        const percent = Math.floor((completedCount / targetUrls.length) * 100);
+		        const percent = Math.floor((completedCount / downloadTasks.length) * 100);
 		        progressBar.value = percent;
-		        progressText.innerText = \`正在下载 [\${targetZipName}]... 进度 \${percent}% (\${completedCount}/\${targetUrls.length})\`;
+		        progressText.innerText = \`正在下载 [\${targetZipName}]... 进度 \${percent}% (\${completedCount}/\${downloadTasks.length})\`;
 		    };
 		    const downloadWorker = async () => {
-		        while (currentIndex < targetUrls.length) {
+		        while (currentIndex < downloadTasks.length) {
 		            const index = currentIndex++;
-		           const currentUrl = targetUrls[index];
-		const meta = targetData[index] || {};
+		const task = downloadTasks[index];
+		const currentUrl = task.currentUrl;
+		const meta = task.meta || {};
 		const originalUrl = meta.originalUrl || currentUrl;
 		const fetchUrl = meta.fetchUrl || currentUrl;
 		const mediaType = meta.mediaType || 'unknown';
 		const viaProxy = !!meta.viaProxy;
-		const baseName = finalFileNames[index];
+		const baseName = task.baseName;
+		const directory = task.directory;
 		let inferredExt = '.bin';
 		
 		try {
@@ -1340,10 +1733,10 @@ const htmlContent = `
 		}, 3, 30000);
 		    const blob = await response.blob();
 		    inferredExt = inferExtFromUrlOrBlob(originalUrl, blob);
-		    zip.file(baseName + inferredExt, blob);
+		    zip.file(directory + baseName + inferredExt, blob);
 		} catch (error) {
 		    zip.file(
-		baseName + '_下载失败记录_' + (index + 1) + '.txt',
+		directory + baseName + '_下载失败记录_' + (index + 1) + '.txt',
 		'下载地址: ' + fetchUrl + '\\n'
 		+ '原始链接: ' + originalUrl + '\\n'
 		+ '资源类型: ' + mediaType + '\\n'
@@ -1358,7 +1751,7 @@ const htmlContent = `
 		        }
 		    };
 		    try {
-		        await Promise.all(Array.from({ length: Math.min(CONCURRENCY_LIMIT, targetUrls.length) }, () => downloadWorker()));
+		        await Promise.all(Array.from({ length: Math.min(CONCURRENCY_LIMIT, downloadTasks.length) }, () => downloadWorker()));
 		        progressText.innerText = '资源下载完成，正在拼命压缩中，请稍候...';
 		        const content = await zip.generateAsync({ type: 'blob' });
 		        saveAs(content, \`\${targetZipName}.zip\`);

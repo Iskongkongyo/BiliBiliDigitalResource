@@ -4,7 +4,7 @@
 >
 > **别慌，这个项目就是为了打破这些枷锁而生的！** 🚀
 
-这是一个基于 **Cloudflare Workers** 打造的纯 Serverless 级 B 站数字周边解析与下载工具。前端极简唯美，后端硬核防盗。只需要一键部署，你就能实现B站数字周边下载自由！
+这是一个 B 站数字周边解析与下载工具，同时提供可直接打开的**本地手动版、本地自动版**，以及带安全代理与自动解析能力的 **Cloudflare Workers 云端版**。不想部署可以直接使用本地 HTML，想要更稳定、私有的体验也可以部署自己的 Worker。
 
 > [!CAUTION]
 >
@@ -12,16 +12,23 @@
 
 > [!TIP]
 >
-> 如果不想费时费力部署，可直接下载[手动版本.html](./本地部署/手动版本.html)或[自动版本.html](./本地部署/自动版本.html)到本地使用！这两者在操作上面有一定的区别！前者是全手动版本（需要在新弹窗获取数据并粘贴到“**获取数字周边信息**”和“**获取媒体数据**”输入框），后者是自动版本（只需粘贴链接到“**获取链接**”输入框并点击“一键智能解析”等待获取视频和图片即可）。
+> 如果不想部署，可直接下载[手动版本.html](./本地部署/手动版本.html)或[自动版本.html](./本地部署/自动版本.html)到本地使用：
+>
+> - **手动版本**：需要在新窗口获取 JSON，并粘贴到“获取数字周边信息”和“获取媒体数据”输入框。步骤稍多，但不依赖公共跨域代理。
+> - **自动版本**：粘贴链接后即可一键解析，使用 AllOrigins 公共代理获取数据；公共服务偶尔可能波动，失败时可改用手动版本。
+> - **云端版本**：部署 [worker.js](./云端部署/worker.js) 后使用，支持自动解析、安全代理和自动失败后的手动兜底。
 
 ## ✨ 核心亮点 
 
 - **🪄 一键智能解析**：只需粘贴 B 站 APP 里的分享链接，自动拉取所有高清卡面、视频素材、动态头像和表情包。
-- **🛡️ 降维打击防盗链**：原生集成 Cloudflare Worker 反向代理。突破 B 站图片/视频 CDN 的 `403 Forbidden` 拦截，完美解决前端跨域 (CORS) 报错。
-- **👮 接口防滥用 (JWT)**：后端自动抓取素材源域名并签发 JWT (JSON Web Token) 会话级 Cookie。就算别人摸到了你的 Worker 接口，没有合法 Token 也是一律拒之门外！
+- **🌈 动态镭射预览**：识别镭射款数字周边，根据控制图模拟动态光效，支持鼠标、触摸交互及保存当前画面。
+- **⌨️ 快捷单项下载**：鼠标停在图片、视频或镭射卡片上时，按下 `S` 即可单独下载，不必每次都打包全部资源。
+- **🧩 多周边与手动兜底**：活动包含多个数字周边时可自行选择；云端自动解析失败后，也能继续通过页面内的手动流程完成提取。
+- **🛡️ 防盗链代理**：云端版提供受保护的同源资源代理；当前用于在镭射卡面或控制图直连失败时自动兜底，并限制可代理的目标域名。
+- **👮 代理防滥用 (JWT)**：后端根据解析结果生成允许访问的素材域名列表，并签发 JWT (JSON Web Token) 会话 Cookie；没有合法 Token 时无法调用素材代理。
 - **🔒 私有化部署 (Basic Auth)**：支持配置全局账号密码，把工具私有化，杜绝野生网友白嫖你的流量。
-- **📦 强迫症福音的打包下载**：一键将数个视频和图片打包成 `.zip`。自带**智能去重命名**算法，不用担心同名表情包相互覆盖！
-- **⚡ 纯粹的 Serverless**：零服务器成本！不需要购买 VPS，不需要装 Node.js，一个 Cloudflare 账号搞定一切前后端逻辑。
+- **📦 强迫症福音的打包下载**：一键将视频、图片及镭射控制图打包成 `.zip`，自带**智能去重命名**算法，不用担心同名素材相互覆盖！
+- **⚡ 纯粹的 Serverless**：不需要购买或维护 VPS，可直接运行在 Cloudflare Workers 的免费额度内（具体配额以 Cloudflare 官方规则为准）。
 
 ------
 
@@ -31,47 +38,55 @@
 
 ### 第一步：创建 Worker
 
-1. 登录你的 [Cloudflare 控制台](https://dash.cloudflare.com/)。
-2. 在左侧菜单找到 **Workers & Pages**，点击 `Create Application` -> `Create Worker`。
-3. 随便起个炫酷的名字（比如 `bili-extractor`），点击 `Deploy`。
-4. 点击 `Edit code`，把本项目中的 `云端部署/workerPro.js` 代码 **全选复制粘贴** 进去，保存并部署。
+1. 登录 [Cloudflare 控制台](https://dash.cloudflare.com/)，进入 **Workers & Pages**。
+2. 点击 **Create application**，按控制台提示创建一个 Worker（可以从 Hello World 或任意基础模板开始），例如命名为 `bili-extractor`。
+3. 完成首次部署后进入该 Worker，点击 **Edit code**。
+4. 将本项目中的 [云端部署/worker.js](./云端部署/worker.js) **全选复制粘贴**到编辑器中，然后保存并部署。
 
 ### 第二步：配置环境变量
 
-为了你的接口安全和私密性，**强烈建议**在控制台配置环境变量（不用改代码！）：
+为了接口安全和私密性，**强烈建议**在控制台配置以下变量（不用改代码）。这些内容包含密钥或密码，请选择 **Secret** 类型，不要保存成可见的纯文本变量：
 
-进入你刚建好的 Worker 详情页 -> **Settings (设置)** -> **Variables and Secrets (变量和机密)**，添加以下变量：
+进入 Worker 详情页 → **Settings** → **Variables and Secrets** → **Add**：
 
-| **变量名 (Variable Name)** | **示例值 (Value)**   | **作用说明**                                        |
-| -------------------------- | -------------------- | --------------------------------------------------- |
-| `JWT_SECRET`               | `随便乱敲一长串字符` | **【必填】** 用于加密会话的密钥。越长越复杂越好！   |
-| `BASIC_USER`               | `admin`              | **【选填】** 访问页面的账号。留空则所有人均可访问。 |
-| `BASIC_PASS`               | `123456`             | **【选填】** 访问页面的密码。必须和上面搭配使用。   |
+| **变量名**   | **类型** | **示例值**         | **作用说明** |
+| ------------ | -------- | ------------------ | ------------ |
+| `JWT_SECRET` | Secret   | 一段足够长的随机值 | **强烈建议配置**。用于签发代理访问令牌；代码内默认值仅用于避免首次运行报错，不适合公开部署。 |
+| `BASIC_USER` | Secret   | `admin`            | **选填**。访问网页的账号；必须与 `BASIC_PASS` 同时配置。 |
+| `BASIC_PASS` | Secret   | 一段高强度密码     | **选填**。访问网页的密码；必须与 `BASIC_USER` 同时配置。 |
 
-> *注：修改环境变量后，可能需要重新部署一下 Worker 才能生效哦！*
+> 修改变量后请点击 **Deploy** 使其生效。公开部署时请务必替换默认 `JWT_SECRET`，也不要直接使用表格中的示例密码。
 
 ### 第三步：绑定自定义域名（可选）
 
-嫌 Cloudflare 自带的 `workers.dev` 域名被墙了不好记？
+如果 Cloudflare 自带的 `workers.dev` 域名在你的网络环境中访问不稳定，或者你想使用更容易记住的地址：
 
-在 Worker 详情页的 **Triggers (触发器)** -> **Custom Domains (自定义域)** 里，绑定一个你在 CF 托管的域名，比如 `bili.yourdomain.com`，瞬间逼格满满！
+在 Worker 详情页进入 **Settings → Domains & Routes → Add → Custom Domain**，绑定一个由 Cloudflare 管理的域名，例如 `bili.yourdomain.com`。
 
 ------
 
 ## 🎮 怎么玩？
 
-1. 打开 B 站移动端 APP，进入 **我的 -> 个性装扮 -> 搜索你想找的装扮**。
-2. 点击右上角的 **分享**，复制链接（建议分享到 QQ 提取出纯净的 URL）。
+1. 打开 B 站移动端 APP，进入 **我的 → 个性装扮 → 搜索你想找的装扮**。
+2. 点击右上角的 **分享**并复制内容。本地版本建议使用其中的 URL；云端版本也支持形如 `2026DLCSHARE$...` 的完整分享文本。
 3. 打开你部署好的工具网页，如果有提示框就输入你设置的账号密码。
 4. 把链接往输入框里一扔，点击 **“一键智能解析”**。
-5. 欣赏满屏的高清素材，点击 **“打包下载全部”**。泡杯茶，等待 ZIP 文件落入你的硬盘。☕
+5. 如果检测到多个数字周边，选择你想提取的一个；若自动解析失败，按照页面出现的手动步骤继续即可。
+6. 欣赏满屏的高清素材：点击 **“打包下载全部”**生成 ZIP，或者将鼠标停在某个素材上按 `S` 单独下载。☕
+
+### 动态镭射说明
+
+- 当数字周边包含镭射控制图时，页面会自动显示实验性的动态镭射预览。
+- 在卡面上移动鼠标或手指可以改变光效方向；可关闭/开启镭射，也可保存当前画面为 PNG。
+- 打包下载时，原始卡面与镭射控制图都会保留，控制图位于 ZIP 内的 `镭射效果控制图` 文件夹。
+- **镭射预览仅供参考，模拟效果可能与 B 站 APP 中的实际效果存在差异。**
 
 ------
 
 ## 🛠️ 技术栈
 
 - **前端**：原生 HTML + CSS Grid + 原生 Fetch API
-- **第三方库**：[JSZip](https://stuk.github.io/jszip/) (打包压缩) + [FileSaver.js](https://www.google.com/search?q=https://github.com/eligrey/FileSaver.js) (触发下载)
+- **第三方库**：[JSZip](https://stuk.github.io/jszip/)（打包压缩）+ [FileSaver.js](https://github.com/eligrey/FileSaver.js)（触发下载）
 - **后端**：Cloudflare Workers (V8 引擎) + Web Crypto API (手搓 JWT)
 
 ------
@@ -79,6 +94,9 @@
 ## ✨ 一些数字周边链接 
 
 我找到了一些还不错的数字周边链接，拿出来分享一下！
+
+<details>
+<summary>展开查看示例链接</summary>
 
 https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=104671&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=weixin
 
@@ -96,8 +114,6 @@ https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=102546&
 
 https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=279&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
 
-https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=100858&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
-
 https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=102794&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
 
 https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=293&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
@@ -107,8 +123,6 @@ https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=104783&
 https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=104572&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
 
 https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=148&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
-
-https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=102546&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
 
 https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=113&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
 
@@ -121,6 +135,8 @@ https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=106098&
 https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=102857&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
 
 https://www.bilibili.com/h5/mall/digital-card/home?-Abrowser=live&act_id=104978&f_source=plat&from=share&hybrid_set_header=2&page_type=0&share_medium=android&share_source=qq
+
+</details>
 
 ------
 
