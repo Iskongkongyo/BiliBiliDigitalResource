@@ -1428,18 +1428,23 @@ const htmlContent = `
 		            const key = \`\${cardInfo.card_name || ''}::\${cardInfo.card_img || cardInfo.video_list?.[0] || ''}\`;
 		            seen.add(key);
 		        });
-		        const collectChain = infos.collect_list?.collect_chain;
-		        if (Array.isArray(collectChain)) {
-		            if (collectChain[0]?.redeem_item_name === '钻石头像背景') addImageItem(collectChain[0].redeem_item_name, collectChain[0].redeem_item_image);
-		            if (collectChain[1]?.redeem_item_name?.endsWith('表情包')) addImageItem(collectChain[1].redeem_item_name, collectChain[1].redeem_item_image);
-		        }
-		        const collectInfos = infos.collect_list?.collect_infos;
-		        if (Array.isArray(collectInfos)) {
-		            collectInfos.forEach(item => {
-		                const name = item?.redeem_item_name;
-		                if (name && (name.endsWith('表情包') || name.endsWith('动态表情包'))) addImageItem(name, item.redeem_item_image);
-		            });
-		        }
+		        const extraRewardTypeNames = new Set(['评论背景', '典藏卡', '头像挂件']);
+		        const collectChain = Array.isArray(infos.collect_list?.collect_chain)
+		            ? infos.collect_list.collect_chain
+		            : [];
+		        const collectInfos = Array.isArray(infos.collect_list?.collect_infos)
+		            ? infos.collect_list.collect_infos
+		            : [];
+		        [...collectChain, ...collectInfos].forEach(item => {
+		            const itemName = item?.redeem_item_name || '';
+		            const itemTypeName = item?.redeem_item_type_name || '';
+		            const matchesExistingReward =
+		                itemName === '钻石头像背景' || itemName.endsWith('表情包');
+		            const matchesTypeReward = extraRewardTypeNames.has(itemTypeName);
+		            if (matchesExistingReward || matchesTypeReward) {
+		                addImageItem(itemName || itemTypeName, item?.redeem_item_image);
+		            }
+		        });
 		        renderGrid(itemList);
 		    } catch (err) {
 		        alert(\`解析数据出错，请确保输入的是完整的 JSON 格式：\${err.message}\`);
