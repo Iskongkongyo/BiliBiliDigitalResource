@@ -862,6 +862,88 @@ const htmlContent = `
 		        });
 		    }, { rootMargin: '200px 0px' })
 		    : null;
+		const laserMotionButtons = new Set();
+		let laserMotionEnabled = false;
+		let laserMotionListening = false;
+		let laserMotionBaseline = null;
+
+		function getScreenOrientationAngle() {
+		    const angle = screen.orientation?.angle ?? window.orientation ?? 0;
+		    return ((Number(angle) % 360) + 360) % 360;
+		}
+		function normalizeTiltDelta(value) {
+		    return ((value + 180) % 360 + 360) % 360 - 180;
+		}
+		function updateLaserMotionButtons(text) {
+		    laserMotionButtons.forEach(button => {
+		        if (button.isConnected) button.innerText = text;
+		    });
+		}
+		function handleLaserDeviceOrientation(event) {
+		    if (!laserMotionEnabled || event.beta == null || event.gamma == null) return;
+		    const angle = getScreenOrientationAngle();
+		    if (!laserMotionBaseline || laserMotionBaseline.angle !== angle) {
+		        laserMotionBaseline = { beta: event.beta, gamma: event.gamma, angle };
+		        updateLaserMotionButtons('晃动已开启');
+		        return;
+		    }
+
+		    const betaDelta = normalizeTiltDelta(event.beta - laserMotionBaseline.beta);
+		    const gammaDelta = normalizeTiltDelta(event.gamma - laserMotionBaseline.gamma);
+		    let horizontal = gammaDelta;
+		    let vertical = betaDelta;
+		    if (angle === 90) {
+		        horizontal = betaDelta;
+		        vertical = -gammaDelta;
+		    } else if (angle === 270) {
+		        horizontal = -betaDelta;
+		        vertical = gammaDelta;
+		    } else if (angle === 180) {
+		        horizontal = -gammaDelta;
+		        vertical = -betaDelta;
+		    }
+
+		    const targetX = Math.max(0, Math.min(1, 0.5 + horizontal / 60));
+		    const targetY = Math.max(0, Math.min(1, 0.5 + vertical / 60));
+		    laserRenderers.forEach(renderer => {
+		        renderer.pointerX += (targetX - renderer.pointerX) * 0.35;
+		        renderer.pointerY += (targetY - renderer.pointerY) * 0.35;
+		    });
+		}
+		async function enableLaserMotion() {
+		    if (typeof DeviceOrientationEvent === 'undefined') {
+		        alert('当前浏览器或设备不支持晃动感应。');
+		        updateLaserMotionButtons('设备不支持晃动');
+		        return;
+		    }
+		    try {
+		        if (!laserMotionEnabled && typeof DeviceOrientationEvent.requestPermission === 'function') {
+		            const permission = await DeviceOrientationEvent.requestPermission();
+		            if (permission !== 'granted') throw new Error('未获得动作与方向访问权限');
+		        }
+		        if (!laserMotionListening) {
+		            window.addEventListener('deviceorientation', handleLaserDeviceOrientation, true);
+		            laserMotionListening = true;
+		        }
+		        laserMotionEnabled = true;
+		        laserMotionBaseline = null;
+		        updateLaserMotionButtons('请晃动手机');
+		    } catch (error) {
+		        alert('无法开启晃动感应：' + error.message);
+		    }
+		}
+		function registerLaserMotionButton(button) {
+		    const supportsMobileMotion = typeof DeviceOrientationEvent !== 'undefined' &&
+		        (navigator.maxTouchPoints > 0 || 'ontouchstart' in window);
+		    if (!supportsMobileMotion) {
+		        button.style.display = 'none';
+		        return;
+		    }
+		    laserMotionButtons.add(button);
+		    button.innerText = laserMotionEnabled ? '校准晃动' : '开启晃动';
+		    button.title = '移动端点击授权晃动感应；开启后再次点击可重新校准';
+		    button.addEventListener('click', enableLaserMotion);
+		}
 		
 		function getParam(url, param) {
 		    try { return new URL(url).searchParams.get(param); } catch (e) { return null; }
@@ -1460,6 +1542,10 @@ const htmlContent = `
 		    const toggleButton = document.createElement('button');
 		    toggleButton.type = 'button';
 		    toggleButton.innerText = '关闭镭射';
+		    const motionButton = document.createElement('button');
+		    motionButton.type = 'button';
+		    motionButton.className = 'secondary';
+		    registerLaserMotionButton(motionButton);
 		    const saveButton = document.createElement('button');
 		    saveButton.type = 'button';
 		    saveButton.className = 'secondary';
@@ -1467,6 +1553,7 @@ const htmlContent = `
 		    saveButton.disabled = true;
 
 		    actions.appendChild(toggleButton);
+		    actions.appendChild(motionButton);
 		    actions.appendChild(saveButton);
 		    stage.appendChild(canvas);
 		    stage.appendChild(badge);
@@ -1568,6 +1655,7 @@ const htmlContent = `
 		        stage.insertBefore(fallbackImage, badge);
 		        badge.style.display = 'none';
 		        toggleButton.disabled = true;
+		        motionButton.disabled = true;
 		        saveButton.disabled = true;
 		    });
 		    return preview;
@@ -1580,6 +1668,7 @@ const htmlContent = `
 		    laserControlFiles = [];
 		    laserRenderers.forEach(renderer => laserVisibilityObserver?.unobserve(renderer.stage));
 		    laserRenderers.clear();
+		    laserMotionButtons.clear();
 		
 		    itemList.forEach((item, index) => {
 		        if (!item || !item.card_info) return;
