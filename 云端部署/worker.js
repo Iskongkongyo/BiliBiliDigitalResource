@@ -732,7 +732,9 @@ const htmlContent = `
 		.laser-stage { position: relative; width: 100%; aspect-ratio: 2 / 3; overflow: hidden; background: #0f172a; touch-action: none; cursor: crosshair; }
 		.laser-stage canvas { display: block; width: 100%; height: 100%; }
 		.laser-badge { position: absolute; top: 10px; left: 10px; z-index: 2; padding: 4px 9px; border: 1px solid rgba(255,255,255,0.55); border-radius: 999px; color: #fff; background: rgba(15,23,42,0.68); box-shadow: 0 4px 14px rgba(0,0,0,0.2); backdrop-filter: blur(6px); font-size: 12px; font-weight: bold; pointer-events: none; }
-		.laser-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; color: #e2e8f0; background: #0f172a; font-size: 13px; text-align: center; }
+		.laser-status { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; box-sizing: border-box; color: #e2e8f0; background: #0f172a; font-size: 13px; text-align: center; }
+		.laser-status button, .media-retry button { padding: 8px 14px; box-shadow: none; }
+		.media-retry { width: 100%; height: 380px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; box-sizing: border-box; color: var(--text-muted); background: #f3f4f6; text-align: center; }
 		.laser-actions { display: flex; gap: 8px; padding: 9px; background: #f8fafc; border-top: 1px solid var(--border-color); }
 		.laser-actions button { flex: 1; padding: 7px 8px; border-radius: 6px; font-size: 12px; box-shadow: none; }
 		.laser-actions .secondary { color: var(--text-main); background: #e2e8f0; }
@@ -933,8 +935,11 @@ const htmlContent = `
 		    }
 		}
 		function registerLaserMotionButton(button) {
-		    const supportsMobileMotion = typeof DeviceOrientationEvent !== 'undefined' &&
-		        (navigator.maxTouchPoints > 0 || 'ontouchstart' in window);
+		    const isMobileDevice = navigator.userAgentData?.mobile === true ||
+		        /Android|iPhone|iPad|iPod|Mobile|HarmonyOS/i.test(navigator.userAgent) ||
+		        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+		    const supportsMobileMotion = isMobileDevice &&
+		        typeof DeviceOrientationEvent !== 'undefined';
 		    if (!supportsMobileMotion) {
 		        button.style.display = 'none';
 		        return;
@@ -943,6 +948,49 @@ const htmlContent = `
 		    button.innerText = laserMotionEnabled ? '校准晃动' : '开启晃动';
 		    button.title = '移动端点击授权晃动感应；开启后再次点击可重新校准';
 		    button.addEventListener('click', enableLaserMotion);
+		}
+		function attachMediaRetry(media, url, mediaLabel) {
+		    let retryPlaceholder = null;
+		    const showRetry = () => {
+		        if (retryPlaceholder) return;
+		        if (!media.isConnected) {
+		            setTimeout(() => {
+		                if (media.isConnected) showRetry();
+		            }, 0);
+		            return;
+		        }
+		        media.style.display = 'none';
+		        retryPlaceholder = document.createElement('div');
+		        retryPlaceholder.className = 'media-retry';
+		        const message = document.createElement('div');
+		        message.innerText = mediaLabel + '加载失败';
+		        const retryButton = document.createElement('button');
+		        retryButton.type = 'button';
+		        retryButton.innerText = '↻ 重新加载';
+		        retryButton.addEventListener('click', () => {
+		            retryPlaceholder.remove();
+		            retryPlaceholder = null;
+		            media.style.display = '';
+		            if (media instanceof HTMLVideoElement) {
+		                media.pause();
+		                media.removeAttribute('src');
+		                media.load();
+		                setTimeout(() => {
+		                    media.src = url;
+		                    media.load();
+		                }, 0);
+		            } else {
+		                media.removeAttribute('src');
+		                setTimeout(() => {
+		                    media.src = url;
+		                }, 0);
+		            }
+		        });
+		        retryPlaceholder.appendChild(message);
+		        retryPlaceholder.appendChild(retryButton);
+		        media.insertAdjacentElement('afterend', retryPlaceholder);
+		    };
+		    media.addEventListener('error', showRetry);
 		}
 		
 		function getParam(url, param) {
@@ -1601,63 +1649,82 @@ const htmlContent = `
 		        }
 		    });
 
-		    Promise.all([
-		        loadCorsImage(cardInfo.card_img),
-		        loadCorsImage(metaInfo.upgrade_cover_url)
-		    ]).then(([baseImage, coverImage]) => {
-		        const renderWidth = Math.min(480, baseImage.naturalWidth || baseImage.width);
-		        const renderHeight = Math.round(
-		            renderWidth * (baseImage.naturalHeight || baseImage.height) /
-		            (baseImage.naturalWidth || baseImage.width)
-		        );
-		        canvas.width = renderWidth;
-		        canvas.height = renderHeight;
-		        maskCanvas.width = renderWidth;
-		        maskCanvas.height = renderHeight;
-		        effectCanvas.width = renderWidth;
-		        effectCanvas.height = renderHeight;
-
-		        const maskContext = maskCanvas.getContext('2d', { willReadFrequently: true });
-		        maskContext.drawImage(coverImage, 0, 0, renderWidth, renderHeight);
-		        const maskPixels = maskContext.getImageData(0, 0, renderWidth, renderHeight);
-		        const skinProtection = Math.max(0, Number(config.skin_protection) || 0);
-		        const clothBoost = Math.max(0, Number(config.cloth_boost) || 0);
-		        const maskExponent = 0.82 + skinProtection * 0.34;
-		        const maskBoost = 0.72 + clothBoost * 0.42;
-		        for (let offset = 0; offset < maskPixels.data.length; offset += 4) {
-		            const luminance = (
-		                maskPixels.data[offset] * 0.2126 +
-		                maskPixels.data[offset + 1] * 0.7152 +
-		                maskPixels.data[offset + 2] * 0.0722
-		            ) / 255;
-		            const alpha = Math.min(1, Math.pow(luminance, maskExponent) * maskBoost);
-		            maskPixels.data[offset] = 255;
-		            maskPixels.data[offset + 1] = 255;
-		            maskPixels.data[offset + 2] = 255;
-		            maskPixels.data[offset + 3] = Math.round(alpha * 255);
-		        }
-		        maskContext.putImageData(maskPixels, 0, 0);
-		        renderer.baseImage = baseImage;
-		        renderer.ready = true;
-		        status.remove();
-		        saveButton.disabled = false;
-		        drawLaserFrame(renderer, performance.now());
-		        startLaserAnimation();
-		    }).catch(error => {
-		        console.error('镭射预览加载失败：', error);
-		        renderer.enabled = false;
-		        status.innerText = '镭射预览加载失败，将显示普通卡面。\\n' + error.message;
-		        canvas.style.display = 'none';
-		        const fallbackImage = document.createElement('img');
-		        fallbackImage.src = cardInfo.card_img;
-		        fallbackImage.alt = titleText;
-		        fallbackImage.referrerPolicy = 'no-referrer';
-		        stage.insertBefore(fallbackImage, badge);
-		        badge.style.display = 'none';
+		    const loadLaserAssets = () => {
+		        renderer.ready = false;
+		        renderer.enabled = true;
+		        toggleButton.innerText = '关闭镭射';
 		        toggleButton.disabled = true;
 		        motionButton.disabled = true;
 		        saveButton.disabled = true;
-		    });
+		        badge.style.display = 'block';
+		        canvas.style.display = 'block';
+		        status.style.display = 'flex';
+		        status.replaceChildren(document.createTextNode('正在加载卡面与镭射控制图...'));
+
+		        Promise.all([
+		            loadCorsImage(cardInfo.card_img),
+		            loadCorsImage(metaInfo.upgrade_cover_url)
+		        ]).then(([baseImage, coverImage]) => {
+		            const renderWidth = Math.min(480, baseImage.naturalWidth || baseImage.width);
+		            const renderHeight = Math.round(
+		                renderWidth * (baseImage.naturalHeight || baseImage.height) /
+		                (baseImage.naturalWidth || baseImage.width)
+		            );
+		            canvas.width = renderWidth;
+		            canvas.height = renderHeight;
+		            maskCanvas.width = renderWidth;
+		            maskCanvas.height = renderHeight;
+		            effectCanvas.width = renderWidth;
+		            effectCanvas.height = renderHeight;
+
+		            const maskContext = maskCanvas.getContext('2d', { willReadFrequently: true });
+		            maskContext.drawImage(coverImage, 0, 0, renderWidth, renderHeight);
+		            const maskPixels = maskContext.getImageData(0, 0, renderWidth, renderHeight);
+		            const skinProtection = Math.max(0, Number(config.skin_protection) || 0);
+		            const clothBoost = Math.max(0, Number(config.cloth_boost) || 0);
+		            const maskExponent = 0.82 + skinProtection * 0.34;
+		            const maskBoost = 0.72 + clothBoost * 0.42;
+		            for (let offset = 0; offset < maskPixels.data.length; offset += 4) {
+		                const luminance = (
+		                    maskPixels.data[offset] * 0.2126 +
+		                    maskPixels.data[offset + 1] * 0.7152 +
+		                    maskPixels.data[offset + 2] * 0.0722
+		                ) / 255;
+		                const alpha = Math.min(1, Math.pow(luminance, maskExponent) * maskBoost);
+		                maskPixels.data[offset] = 255;
+		                maskPixels.data[offset + 1] = 255;
+		                maskPixels.data[offset + 2] = 255;
+		                maskPixels.data[offset + 3] = Math.round(alpha * 255);
+		            }
+		            maskContext.putImageData(maskPixels, 0, 0);
+		            renderer.baseImage = baseImage;
+		            renderer.ready = true;
+		            status.style.display = 'none';
+		            toggleButton.disabled = false;
+		            motionButton.disabled = false;
+		            saveButton.disabled = false;
+		            drawLaserFrame(renderer, performance.now());
+		            startLaserAnimation();
+		        }).catch(error => {
+		            console.error('镭射预览加载失败：', error);
+		            renderer.enabled = false;
+		            canvas.style.display = 'none';
+		            badge.style.display = 'none';
+		            toggleButton.disabled = true;
+		            motionButton.disabled = true;
+		            saveButton.disabled = true;
+		            status.replaceChildren();
+		            const message = document.createElement('div');
+		            message.innerText = '镭射预览加载失败\\n' + error.message;
+		            const retryButton = document.createElement('button');
+		            retryButton.type = 'button';
+		            retryButton.innerText = '↻ 重新加载';
+		            retryButton.addEventListener('click', loadLaserAssets);
+		            status.appendChild(message);
+		            status.appendChild(retryButton);
+		        });
+		    };
+		    loadLaserAssets();
 		    return preview;
 		}
 		function renderGrid(itemList) {
@@ -1693,11 +1760,12 @@ const htmlContent = `
 		
 		        if (rawVideoUrl) {
 		            const video = document.createElement('video');
-		            video.src = rawVideoUrl;
 		            video.controls = true;
 		            video.preload = 'metadata';
 			video.referrerPolicy = 'no-referrer';
 		            video.setAttribute('playsinline', 'true');
+		            attachMediaRetry(video, rawVideoUrl, '视频');
+		            video.src = rawVideoUrl;
 		            wrapper.appendChild(video);
 		
 		            fileUrls.push(rawVideoUrl);
@@ -1721,9 +1789,10 @@ const htmlContent = `
 		            });
 		        } else {
 		            const img = document.createElement('img');
-		            img.src = rawImgUrl;
 		            img.alt = title.innerText;
 			img.referrerPolicy = 'no-referrer';
+		            attachMediaRetry(img, rawImgUrl, '图片');
+		            img.src = rawImgUrl;
 		            wrapper.appendChild(img);
 		
 		            fileUrls.push(rawImgUrl);
