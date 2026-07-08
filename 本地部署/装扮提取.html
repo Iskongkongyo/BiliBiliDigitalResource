@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>B站装扮资源提取工具</title>
+    <style>
+        :root {
+            --primary: #10b981;
+            --primary-glow: rgba(16, 185, 129, 0.3);
+            --bg-color: #ffffff;
+            --panel-bg: #ffffff;
+            --text-main: #1f2937;
+            --text-muted: #6b7280;
+            --border-color: #e5e7eb;
+            --border-radius: 12px;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg-color); color: var(--text-main); margin: 0; padding: 20px; line-height: 1.6; display: flex; flex-direction: column; justify-content: center; min-height: 100vh; box-sizing: border-box; }
+        .container { width: 100%; max-width: 1200px; margin: auto; }
+        .panel { background: var(--panel-bg); padding: 30px; border-radius: var(--border-radius); box-shadow: 0 4px 20px rgba(0,0,0,0.06); margin-bottom: 24px; border: 1px solid var(--border-color); }
+        h1, h2 { color: var(--text-main); margin-top: 0; display: flex; align-items: center; justify-content: space-between; }
+        .github-icon { color: var(--text-main); transition: color 0.3s ease, filter 0.3s ease; display: flex; align-items: center; }
+        .github-icon:hover { color: var(--primary); filter: drop-shadow(0 0 8px var(--primary-glow)); }
+        .step-container { margin-bottom: 24px; }
+        .step-title { font-size: 1.1em; font-weight: bold; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; color: var(--primary); }
+        .step-badge { background: var(--primary); color: #fff; width: 24px; height: 24px; border-radius: 50%; display: inline-flex; justify-content: center; align-items: center; font-size: 14px; box-shadow: 0 0 8px var(--primary-glow); }
+        textarea { width: 100%; box-sizing: border-box; background: #ffffff; border: 1px solid var(--border-color); color: var(--text-main); padding: 15px; border-radius: 8px; resize: vertical; font-family: monospace; transition: all 0.3s; }
+        textarea:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px var(--primary-glow); }
+        a { text-decoration: none; color: #1CBD87; font-weight: bold; }
+        button { background: var(--primary); color: #fff; border: none; padding: 10px 24px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 15px; transition: all 0.3s ease; box-shadow: 0 4px 12px var(--primary-glow); }
+        button:hover { background: #059669; transform: translateY(-2px); }
+        button:disabled { background: #94a3b8; cursor: not-allowed; box-shadow: none; transform: none; }
+        #resources-grid { display: flex; flex-direction: column; gap: 18px; margin-top: 20px; }
+        .category-section { display: flex; align-items: stretch; gap: 16px; padding: 16px; border: 1px solid var(--border-color); border-radius: var(--border-radius); background: #ffffff; }
+        .category-title { flex: 0 0 128px; font-size: 1.05em; font-weight: bold; color: var(--primary); padding-right: 14px; border-right: 2px solid var(--primary); display: flex; align-items: center; justify-content: center; gap: 8px; text-align: center; flex-wrap: wrap; align-content: center; }
+        .category-title .count-badge { background: var(--primary); color: #fff; font-size: 12px; padding: 2px 8px; border-radius: 10px; }
+        .category-media-grid { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+        .media-card { background: #ffffff; border-radius: var(--border-radius); overflow: hidden; display: flex; flex-direction: column; align-items: center; align-self: start; border: 1px solid var(--border-color); transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s; }
+        .media-card:hover { transform: scale(1.02); border-color: var(--primary); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        .media-card img { width: 100%; height: 280px; object-fit: contain; background: #f3f4f6; padding: 8px; box-sizing: border-box; }
+        .media-card .title { padding: 10px 12px; font-size: 0.85em; text-align: center; color: var(--text-muted); width: 100%; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #ffffff; border-top: 1px solid var(--border-color); }
+        .media-card .title[title] { cursor: help; }
+        .progress-wrapper { display: none; margin: 20px 0; background: #ffffff; padding: 15px; border-radius: 8px; border: 1px solid var(--border-color); }
+        progress { width: 100%; height: 12px; border-radius: 6px; appearance: none; overflow: hidden; margin-bottom: 8px; }
+        progress::-webkit-progress-bar { background-color: #f1f5f9; }
+        progress::-webkit-progress-value { background-color: var(--primary); }
+        #progressText { color: var(--primary); font-weight: bold; font-size: 0.9em; }
+        .result-title-area { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; }
+        .result-hints { color: var(--text-muted); font-size: 14px; font-weight: bold; }
+        .media-retry { width: 100%; height: 280px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; box-sizing: border-box; color: var(--text-muted); background: #f3f4f6; text-align: center; }
+        @media (max-width: 640px) {
+            #result-title { align-items: flex-start; flex-direction: column; gap: 12px; }
+            .category-section { flex-direction: column; }
+            .category-title { flex: none; justify-content: flex-start; padding-right: 0; padding-bottom: 8px; border-right: none; border-bottom: 2px solid var(--primary); text-align: left; }
+            .category-media-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="panel">
+            <h1>
+                B站装扮资源提取工具
+                <a href="https://github.com/Iskongkongyo" target="_blank" class="github-icon" title="访问我的 GitHub 主页">
+                    <svg height="28" width="28" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
+                </a>
+            </h1>
+            <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">专用于 <code>suit/detail</code> 装扮商品页面的资源提取，支持主题皮肤、空间背景、评论卡片、表情包等全部素材的预览与打包下载。</p>
+
+            <div class="step-container">
+                <div class="step-title"><span class="step-badge">1</span> 粘贴装扮链接</div>
+                <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">在B站装扮商城找到想要的装扮，复制页面链接粘贴到此处。</p>
+                <textarea id="suit-url" rows="3" placeholder="粘贴装扮URL，例如：https://www.bilibili.com/h5/mall/suit/detail?id=202954701"></textarea>
+                <div style="margin-top: 10px; text-align: right;">
+                    <button onclick="openSuitApi()">打开装扮接口</button>
+                </div>
+            </div>
+
+            <div class="step-container">
+                <div class="step-title"><span class="step-badge">2</span> 粘贴接口数据</div>
+                <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">在上一步弹出的页面中，复制全部 JSON 文本粘贴到下方，然后点击"解析并渲染资源"。</p>
+                <textarea id="suit-data" rows="6" placeholder="在此处粘贴装扮接口返回的 JSON 数据..."></textarea>
+                <div style="margin-top: 10px; text-align: right;">
+                    <button onclick="parseSuitData()">解析并渲染资源</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="result-panel" class="panel" style="display: none;">
+            <h2 id="result-title">
+                <span class="result-title-area">
+                    <span id="result-name">提取结果</span>
+                    <span class="result-hints">快捷键 S：鼠标悬停在卡片上时可单独下载该资源。</span>
+                </span>
+                <button id="download-btn" onclick="downloadAll()">打包下载全部</button>
+            </h2>
+            <div id="progress-container" class="progress-wrapper">
+                <progress id="download-progress" max="100" value="0"></progress>
+                <div id="progressText">准备下载...</div>
+            </div>
+            <div id="resources-grid"></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script>
+        let zipName = '装扮资源';
+        let allResources = [];
+        let isDownloading = false;
+
+        function getParam(url, param) {
+            try { return new URL(url).searchParams.get(param); }
+            catch { return null; }
+        }
+
+        async function fetchWithRetry(url, options = {}, retries = 3, timeoutMs = 20000) {
+            for (let i = 0; i < retries; i++) {
+                const ctrl = new AbortController();
+                const tid = setTimeout(() => ctrl.abort(), timeoutMs);
+                try {
+                    const r = await fetch(url, { ...options, signal: ctrl.signal });
+                    clearTimeout(tid);
+                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                    return r;
+                } catch (e) {
+                    clearTimeout(tid);
+                    if (i === retries - 1) throw new Error(`请求失败(重试${retries}次): ${e.message}`);
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+            }
+        }
+
+        function normalizeFileName(name, fallback = '未命名') {
+            return String(name || '').replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim() || fallback;
+        }
+
+        function getFileExt(url, blob) {
+            try {
+                const m = new URL(url).pathname.match(/\.[a-zA-Z0-9]{2,}$/i);
+                if (m) return m[0];
+            } catch {}
+            const map = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/gif': '.gif', 'image/webp': '.webp', 'video/mp4': '.mp4' };
+            return map[blob?.type] || '.jpg';
+        }
+
+        function appendFileExt(name, ext) {
+            return name.toLowerCase().endsWith(ext.toLowerCase()) ? name : name + ext;
+        }
+
+        function attachMediaRetry(media, url, label) {
+            let placeholder = null;
+            media.addEventListener('error', () => {
+                if (placeholder) return;
+                media.style.display = 'none';
+                placeholder = document.createElement('div');
+                placeholder.className = 'media-retry';
+                const msg = document.createElement('div');
+                msg.innerText = `${label}加载失败`;
+                const btn = document.createElement('button');
+                btn.innerText = '↻ 重新加载';
+                btn.onclick = () => { placeholder.remove(); placeholder = null; media.style.display = ''; media.src = ''; setTimeout(() => { media.src = url; }, 0); };
+                placeholder.append(msg, btn);
+                media.insertAdjacentElement('afterend', placeholder);
+            });
+        }
+
+        function openSuitApi() {
+            const url = document.getElementById('suit-url').value.trim();
+            if (!url) { alert('URL不能为空！'); return; }
+            const id = getParam(url, 'id');
+            if (!id) { alert('URL中未找到 id 参数！'); return; }
+            const apiUrl = `https://api.bilibili.com/x/garb/v2/mall/suit/detail?item_id=${id}&part=suit`;
+            alert('即将打开装扮接口，请复制页面全部 JSON 并粘贴到第二步！');
+            window.open(apiUrl, '_blank');
+        }
+
+        function extractSuitResources(data) {
+            const resources = [];
+            const seen = new Set();
+            const add = (category, name, url, subDir) => {
+                if (!url || seen.has(url)) return;
+                seen.add(url);
+                resources.push({ category, name, url, subDir: subDir || category });
+            };
+
+            // 封面与分享图
+            if (data.properties) {
+                add('封面', '商品封面', data.properties.image_cover, '封面');
+                add('封面', '分享图', data.properties.fan_share_image, '封面');
+            }
+
+            // 评论卡片 card
+            const cards = data.suit_items?.card || [];
+            cards.forEach(item => {
+                const p = item.properties || {};
+                add('评论卡片', item.name || '评论卡片', p.image, '评论卡片');
+                if (p.image_preview_small) add('评论卡片', (item.name || '卡片') + '_缩略图', p.image_preview_small, '评论卡片');
+                if (p.fans_image && p.fans_image !== p.image) add('评论卡片', (item.name || '粉丝') + '_粉丝徽章', p.fans_image, '评论卡片');
+            });
+
+            // 评论卡片背景 card_bg
+            const cardBgs = data.suit_items?.card_bg || [];
+            cardBgs.forEach(item => {
+                const p = item.properties || {};
+                add('卡片背景', item.name || '卡片背景', p.image, '卡片背景');
+                if (p.image_preview_small) add('卡片背景', (item.name || '卡片背景') + '_缩略图', p.image_preview_small, '卡片背景');
+            });
+
+            // 表情包 emoji_package
+            const emojis = data.suit_items?.emoji_package || [];
+            emojis.forEach(pkg => {
+                const p = pkg.properties || {};
+                add('表情包', '表情包封面', p.image, '表情包');
+                try {
+                    const list = JSON.parse(p.item_emoji_list || '[]');
+                    list.forEach(e => add('表情包', e.name || '表情', e.image, '表情包'));
+                } catch {}
+                if (pkg.items) pkg.items.forEach(e => {
+                    add('表情包', e.name?.replace(/[\[\]]/g, '') || '表情', e.properties?.image, '表情包');
+                });
+            });
+
+            // 主题皮肤 skin
+            const skins = data.suit_items?.skin || [];
+            skins.forEach(item => {
+                const p = item.properties || {};
+                add('主题皮肤', '皮肤预览图', p.image_cover || p.image_preview, '主题皮肤');
+                add('主题皮肤', '顶栏背景', p.head_bg, '主题皮肤');
+                add('主题皮肤', '标签栏背景', p.head_tab_bg, '主题皮肤');
+                add('主题皮肤', '个人页方形背景', p.head_myself_squared_bg, '主题皮肤');
+                add('主题皮肤', '底栏背景', p.tail_bg, '主题皮肤');
+                add('主题皮肤', '首页图标', p.tail_icon_main, '主题皮肤/底栏图标');
+                add('主题皮肤', '首页图标_选中', p.tail_icon_selected_main, '主题皮肤/底栏图标');
+                add('主题皮肤', '动态图标', p.tail_icon_dynamic, '主题皮肤/底栏图标');
+                add('主题皮肤', '动态图标_选中', p.tail_icon_selected_dynamic, '主题皮肤/底栏图标');
+                add('主题皮肤', '频道图标', p.tail_icon_channel, '主题皮肤/底栏图标');
+                add('主题皮肤', '频道图标_选中', p.tail_icon_selected_channel, '主题皮肤/底栏图标');
+                add('主题皮肤', '我的图标', p.tail_icon_myself, '主题皮肤/底栏图标');
+                add('主题皮肤', '我的图标_选中', p.tail_icon_selected_myself, '主题皮肤/底栏图标');
+                add('主题皮肤', '商城图标', p.tail_icon_shop, '主题皮肤/底栏图标');
+                add('主题皮肤', '商城图标_选中', p.tail_icon_selected_shop, '主题皮肤/底栏图标');
+                add('主题皮肤', '发布按钮', p.tail_icon_pub_btn_bg, '主题皮肤/底栏图标');
+                add('主题皮肤', '发布按钮_选中', p.tail_icon_selected_pub_btn_bg, '主题皮肤/底栏图标');
+                if (p.head_myself_mp4_bg) add('主题皮肤', '个人页动态背景', p.head_myself_mp4_bg, '主题皮肤');
+            });
+
+            // 空间背景 space_bg
+            const spaceBgs = data.suit_items?.space_bg || [];
+            spaceBgs.forEach(item => {
+                const p = item.properties || {};
+                add('空间背景', '竖版壁纸1', p.image1_portrait, '空间背景');
+                add('空间背景', '横版壁纸1', p.image1_landscape, '空间背景');
+                add('空间背景', '竖版壁纸2', p.image2_portrait, '空间背景');
+                add('空间背景', '横版壁纸2', p.image2_landscape, '空间背景');
+                if (p.space_1_mp4_vertical) add('空间背景', '竖版动态壁纸1', p.space_1_mp4_vertical, '空间背景');
+                if (p.space_1_mp4_horizontal) add('空间背景', '横版动态壁纸1', p.space_1_mp4_horizontal, '空间背景');
+                if (p.space_2_mp4_vertical) add('空间背景', '竖版动态壁纸2', p.space_2_mp4_vertical, '空间背景');
+                if (p.space_2_mp4_horizontal) add('空间背景', '横版动态壁纸2', p.space_2_mp4_horizontal, '空间背景');
+            });
+
+            // 头像挂件 pendant
+            const pendants = data.suit_items?.pendant || [];
+            pendants.forEach(item => {
+                const p = item.properties || {};
+                add('头像挂件', item.name || '头像挂件', p.image, '头像挂件');
+                if (p.image_preview_small) add('头像挂件', (item.name||'挂件') + '_缩略图', p.image_preview_small, '头像挂件');
+            });
+
+            // 进场 loading
+            const loadings = data.suit_items?.loading || [];
+            loadings.forEach(item => {
+                const p = item.properties || {};
+                add('加载动画', item.name || '加载动画', p.loading_url || p.image, '加载动画');
+                if (p.image_preview_small) add('加载动画', (item.name||'加载') + '_缩略图', p.image_preview_small, '加载动画');
+            });
+
+            // UP主头像
+            if (data.fan_user?.avatar) {
+                add('UP主信息', data.fan_user.nickname + '_头像', data.fan_user.avatar, 'UP主信息');
+            }
+
+            return resources;
+        }
+
+        function parseSuitData() {
+            try {
+                const raw = document.getElementById('suit-data').value.trim();
+                if (!raw) throw new Error('JSON 数据不能为空！');
+                const json = JSON.parse(raw);
+                if (json.code !== 0) throw new Error(`API返回错误: ${json.message || json.code}`);
+                const data = json.data;
+                if (!data) throw new Error('未找到 data 字段！');
+
+                zipName = data.name || '装扮资源';
+                allResources = extractSuitResources(data);
+                if (allResources.length === 0) throw new Error('未能提取到任何资源！');
+
+                document.getElementById('result-panel').style.display = 'block';
+                document.getElementById('result-name').innerText = `${zipName} (${allResources.length}项资源)`;
+                renderResourceGrid(allResources);
+                document.getElementById('result-panel').scrollIntoView({ behavior: 'smooth' });
+            } catch (e) {
+                alert('解析失败：' + e.message);
+            }
+        }
+
+        function renderResourceGrid(resources) {
+            const grid = document.getElementById('resources-grid');
+            grid.innerHTML = '';
+
+            const grouped = {};
+            resources.forEach(r => {
+                if (!grouped[r.category]) grouped[r.category] = [];
+                grouped[r.category].push(r);
+            });
+
+            const categoryOrder = ['封面', '主题皮肤', '空间背景', '评论卡片', '卡片背景', '表情包', '头像挂件', '加载动画', 'UP主信息'];
+            const orderedKeys = categoryOrder.filter(k => grouped[k]);
+            Object.keys(grouped).forEach(k => { if (!orderedKeys.includes(k)) orderedKeys.push(k); });
+
+            const categoryIcons = { '封面': '🎨', '主题皮肤': '🎭', '空间背景': '🖼️', '评论卡片': '💬', '卡片背景': '🃏', '表情包': '😊', '头像挂件': '💎', '加载动画': '⏳', 'UP主信息': '👤' };
+
+            orderedKeys.forEach(cat => {
+                const items = grouped[cat];
+                const section = document.createElement('div');
+                section.className = 'category-section';
+
+                const title = document.createElement('div');
+                title.className = 'category-title';
+                title.innerHTML = `${categoryIcons[cat] || '📦'} ${cat} <span class="count-badge">${items.length}</span>`;
+                section.appendChild(title);
+
+                const catGrid = document.createElement('div');
+                catGrid.className = 'category-media-grid';
+
+                items.forEach(res => {
+                    const card = document.createElement('div');
+                    card.className = 'media-card';
+                    card._downloadInfo = { title: res.name, url: res.url };
+
+                    const isZip = res.url.endsWith('.zip');
+                    const isVideo = /\.(mp4|webm)(\?|$)/i.test(res.url);
+
+                    if (isZip) {
+                        const placeholder = document.createElement('div');
+                        placeholder.className = 'media-retry';
+                        placeholder.innerHTML = '<div style="font-size:2em">📦</div><div>ZIP 离线资源包</div>';
+                        card.appendChild(placeholder);
+                    } else if (isVideo) {
+                        const video = document.createElement('video');
+                        video.controls = true;
+                        video.preload = 'metadata';
+                        video.style.cssText = 'width:100%;height:280px;object-fit:contain;background:#f3f4f6;';
+                        attachMediaRetry(video, res.url, '视频');
+                        video.src = res.url;
+                        card.appendChild(video);
+                    } else {
+                        const img = document.createElement('img');
+                        img.alt = res.name;
+                        img.loading = 'lazy';
+                        attachMediaRetry(img, res.url, '图片');
+                        img.src = res.url;
+                        card.appendChild(img);
+                    }
+
+                    const titleEl = document.createElement('div');
+                    titleEl.className = 'title';
+                    titleEl.innerText = res.name;
+                    titleEl.title = res.name;
+                    card.appendChild(titleEl);
+                    catGrid.appendChild(card);
+                });
+
+                section.appendChild(catGrid);
+                grid.appendChild(section);
+            });
+        }
+
+        // S键单独下载
+        document.addEventListener('keydown', e => {
+            if (e.code !== 'KeyS' || e.repeat || e.ctrlKey || e.altKey || e.metaKey) return;
+            const t = e.target;
+            if (t instanceof HTMLElement && (t.isContentEditable || ['INPUT','TEXTAREA','SELECT'].includes(t.tagName))) return;
+            const card = document.querySelector('.media-card:hover');
+            if (!card?._downloadInfo?.url) return;
+            e.preventDefault();
+            const info = card._downloadInfo;
+            fetchWithRetry(info.url).then(r => r.blob()).then(blob => {
+                saveAs(blob, appendFileExt(normalizeFileName(info.title), getFileExt(info.url, blob)));
+            }).catch(err => alert('下载失败：' + err.message));
+        });
+
+        async function downloadAll() {
+            if (allResources.length === 0) { alert('没有可下载的资源！'); return; }
+            if (isDownloading) { alert('正在下载中，请稍后再试！'); return; }
+
+            isDownloading = true;
+            const progressC = document.getElementById('progress-container');
+            const progressBar = document.getElementById('download-progress');
+            const progressText = document.getElementById('progressText');
+            const btn = document.getElementById('download-btn');
+            progressC.style.display = 'block';
+            btn.disabled = true;
+
+            const zip = new JSZip();
+            const tasks = allResources.map(r => ({ ...r }));
+            const totalTasks = tasks.length;
+            let done = 0;
+            const nameMap = {};
+
+            const update = () => {
+                const pct = totalTasks > 0 ? Math.min(80, Math.floor((done / totalTasks) * 80)) : 0;
+                progressBar.value = pct;
+                progressText.innerText = `正在下载 [${zipName}]... ${pct}% (${done}/${totalTasks})`;
+            };
+
+            const uniqueName = (dir, name) => {
+                const key = `${dir}/${name}`;
+                if (nameMap[key] === undefined) { nameMap[key] = 0; return name; }
+                nameMap[key]++;
+                return `${name}_${nameMap[key]}`;
+            };
+
+            const worker = async () => {
+                while (tasks.length) {
+                    const t = tasks.shift();
+                    if (!t) break;
+                    try {
+                        const r = await fetchWithRetry(t.url, {}, 3, 20000);
+                        const blob = await r.blob();
+                        const ext = getFileExt(t.url, blob);
+                        const safeName = uniqueName(t.subDir, normalizeFileName(t.name));
+                        zip.file(`${t.subDir}/${appendFileExt(safeName, ext)}`, blob);
+                    } catch (e) {
+                        zip.file(`${t.subDir}/${normalizeFileName(t.name)}_下载失败.txt`, `下载失败: ${t.url}\n${e.message}`);
+                    }
+                    done++;
+                    update();
+                }
+            };
+
+            try {
+                update();
+                await Promise.all([worker(), worker()]);
+                progressText.innerText = '下载完成，正在压缩...';
+                await new Promise(r => setTimeout(r, 100));
+                const content = await zip.generateAsync({ type: 'blob' }, metadata => {
+                    const zipPct = Number.isFinite(metadata.percent) ? metadata.percent : 0;
+                    const pct = Math.min(100, 80 + Math.floor(zipPct * 0.2));
+                    progressBar.value = pct;
+                    progressText.innerText = `正在压缩 [${zipName}]... ${pct}%`;
+                });
+                saveAs(content, `${zipName}.zip`);
+                progressBar.value = 100;
+                progressText.innerText = '压缩完毕！文件已保存。';
+                setTimeout(() => { progressC.style.display = 'none'; progressBar.value = 0; isDownloading = false; btn.disabled = false; }, 3000);
+            } catch (e) {
+                alert('打包下载失败：' + e.message);
+                progressText.innerText = '下载失败：' + e.message;
+                isDownloading = false;
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
