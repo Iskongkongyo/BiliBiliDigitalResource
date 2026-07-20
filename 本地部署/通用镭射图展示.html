@@ -1,0 +1,1357 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>B站数字周边镭射图展示器</title>
+    <style>
+        :root {
+            --primary: #10b981;
+            --primary-strong: #059669;
+            --accent: #f59e0b;
+            --hot: #ec4899;
+            --ink: #172033;
+            --muted: #64748b;
+            --line: #dce4ee;
+            --panel: rgba(255, 255, 255, 0.86);
+            --panel-solid: #ffffff;
+            --shadow: 0 18px 60px rgba(15, 23, 42, 0.12);
+            --radius: 8px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            color: var(--ink);
+            font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+            background:
+                radial-gradient(circle at 8% 6%, rgba(16, 185, 129, 0.18), transparent 26rem),
+                radial-gradient(circle at 84% 18%, rgba(236, 72, 153, 0.15), transparent 24rem),
+                linear-gradient(135deg, #f8fafc 0%, #eef7f1 42%, #fff7ed 100%);
+        }
+
+        button,
+        input,
+        select {
+            font: inherit;
+        }
+
+        button {
+            border: 0;
+            border-radius: var(--radius);
+            padding: 10px 14px;
+            color: #ffffff;
+            background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 10px 24px rgba(16, 185, 129, 0.24);
+            transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 14px 30px rgba(16, 185, 129, 0.28);
+        }
+
+        button:disabled {
+            cursor: not-allowed;
+            transform: none;
+            filter: grayscale(0.35);
+            opacity: 0.58;
+            box-shadow: none;
+        }
+
+        button.secondary {
+            color: var(--ink);
+            background: #edf2f7;
+            box-shadow: none;
+        }
+
+        button.secondary:hover {
+            background: #e2e8f0;
+            box-shadow: none;
+        }
+
+        .app {
+            width: min(1440px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 28px 0 34px;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: clamp(26px, 4vw, 44px);
+            line-height: 1.05;
+            letter-spacing: 0;
+        }
+
+        .subtitle {
+            margin: 10px 0 0;
+            color: var(--muted);
+            font-size: 15px;
+            max-width: 760px;
+        }
+
+        .status-pill {
+            flex: 0 0 auto;
+            border: 1px solid rgba(16, 185, 129, 0.28);
+            border-radius: 999px;
+            padding: 8px 12px;
+            color: #047857;
+            background: rgba(236, 253, 245, 0.9);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: minmax(330px, 420px) minmax(0, 1fr);
+            gap: 18px;
+            align-items: start;
+        }
+
+        .panel,
+        .preview-shell {
+            border: 1px solid rgba(220, 228, 238, 0.9);
+            border-radius: var(--radius);
+            background: var(--panel);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(16px);
+        }
+
+        .panel {
+            padding: 18px;
+        }
+
+        .panel + .panel {
+            margin-top: 14px;
+        }
+
+        .section-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+            font-weight: 800;
+            font-size: 16px;
+        }
+
+        .tiny {
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .drop-zone {
+            border: 1.5px dashed rgba(16, 185, 129, 0.5);
+            border-radius: var(--radius);
+            padding: 16px;
+            background:
+                linear-gradient(135deg, rgba(236, 253, 245, 0.86), rgba(255, 247, 237, 0.78));
+            text-align: center;
+            transition: border-color 0.18s ease, transform 0.18s ease, background 0.18s ease;
+        }
+
+        .drop-zone.dragging {
+            border-color: var(--hot);
+            transform: translateY(-1px);
+            background:
+                linear-gradient(135deg, rgba(240, 253, 244, 1), rgba(253, 242, 248, 0.94));
+        }
+
+        .drop-zone strong {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 16px;
+        }
+
+        .drop-zone p {
+            margin: 0 0 14px;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .button-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .file-input {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .slots {
+            display: grid;
+            gap: 10px;
+            margin-top: 14px;
+        }
+
+        .slot {
+            display: grid;
+            grid-template-columns: 72px minmax(0, 1fr) auto;
+            gap: 12px;
+            align-items: center;
+            min-height: 88px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            padding: 10px;
+            background: var(--panel-solid);
+        }
+
+        .slot.dragging {
+            border-color: var(--hot);
+            box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.12);
+        }
+
+        .thumb {
+            width: 72px;
+            height: 72px;
+            border-radius: 6px;
+            background:
+                linear-gradient(45deg, #f1f5f9 25%, transparent 25%),
+                linear-gradient(-45deg, #f1f5f9 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #f1f5f9 75%),
+                linear-gradient(-45deg, transparent 75%, #f1f5f9 75%);
+            background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+            background-size: 16px 16px;
+            overflow: hidden;
+            border: 1px solid #e5e7eb;
+        }
+
+        .thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .slot-name {
+            min-width: 0;
+        }
+
+        .slot-name b,
+        .slot-name span {
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .slot-name b {
+            font-size: 14px;
+        }
+
+        .slot-name span {
+            margin-top: 4px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .asset-list {
+            display: grid;
+            gap: 8px;
+            max-height: 216px;
+            overflow: auto;
+            padding-right: 2px;
+        }
+
+        .asset {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto auto;
+            gap: 8px;
+            align-items: center;
+            border: 1px solid var(--line);
+            border-radius: 7px;
+            padding: 8px;
+            background: #ffffff;
+        }
+
+        .asset-name {
+            min-width: 0;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .asset-name span {
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .asset button {
+            padding: 6px 8px;
+            font-size: 12px;
+            box-shadow: none;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 3px 8px;
+            color: #9a3412;
+            background: #ffedd5;
+            font-size: 12px;
+            font-weight: 800;
+        }
+
+        .controls {
+            display: grid;
+            gap: 12px;
+        }
+
+        .control {
+            display: grid;
+            grid-template-columns: 112px minmax(0, 1fr) 46px;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .control label {
+            color: #334155;
+            font-size: 13px;
+            font-weight: 800;
+        }
+
+        .control output {
+            color: var(--muted);
+            font-size: 12px;
+            font-variant-numeric: tabular-nums;
+            text-align: right;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--primary);
+        }
+
+        .preview-shell {
+            overflow: hidden;
+            background: #0f172a;
+        }
+
+        .preview-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 16px;
+            color: #e2e8f0;
+            background:
+                linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.92));
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .preview-title {
+            min-width: 0;
+        }
+
+        .preview-title b,
+        .preview-title span {
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .preview-title b {
+            font-size: 16px;
+        }
+
+        .preview-title span {
+            margin-top: 3px;
+            color: #94a3b8;
+            font-size: 12px;
+        }
+
+        .preview-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .preview-actions button {
+            padding: 8px 10px;
+            font-size: 13px;
+        }
+
+        .stage-wrap {
+            display: grid;
+            place-items: center;
+            min-height: min(76vh, 820px);
+            padding: clamp(12px, 2vw, 24px);
+            background:
+                linear-gradient(45deg, rgba(255, 255, 255, 0.04) 25%, transparent 25%),
+                linear-gradient(-45deg, rgba(255, 255, 255, 0.04) 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.04) 75%),
+                linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.04) 75%),
+                #111827;
+            background-position: 0 0, 0 16px, 16px -16px, -16px 0;
+            background-size: 32px 32px;
+        }
+
+        .laser-stage {
+            position: relative;
+            width: min(100%, 620px);
+            max-height: 78vh;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #020617;
+            touch-action: none;
+            cursor: crosshair;
+            box-shadow:
+                0 28px 90px rgba(0, 0, 0, 0.38),
+                0 0 0 1px rgba(255, 255, 255, 0.08);
+        }
+
+        .laser-stage canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            max-height: 78vh;
+        }
+
+        .laser-status {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 22px;
+            color: #dbeafe;
+            background: rgba(15, 23, 42, 0.94);
+            text-align: center;
+            line-height: 1.55;
+        }
+
+        .laser-status strong {
+            color: #ffffff;
+            font-size: 18px;
+        }
+
+        .hint {
+            margin: 12px 0 0;
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.55;
+        }
+
+        @media (max-width: 980px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+
+            .topbar {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .app {
+                width: min(100% - 20px, 1440px);
+                padding-top: 16px;
+            }
+
+            .panel {
+                padding: 14px;
+            }
+
+            .slot {
+                grid-template-columns: 58px minmax(0, 1fr);
+            }
+
+            .slot .button-row {
+                grid-column: 1 / -1;
+                justify-content: flex-start;
+            }
+
+            .thumb {
+                width: 58px;
+                height: 58px;
+            }
+
+            .control {
+                grid-template-columns: 90px minmax(0, 1fr) 42px;
+            }
+
+            .preview-head {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .preview-actions {
+                width: 100%;
+                justify-content: flex-start;
+            }
+
+            .stage-wrap {
+                min-height: 58vh;
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <main class="app">
+        <header class="topbar">
+            <div>
+                <h1>B站数字周边镭射图展示器</h1>
+                <p class="subtitle">把压缩包解压后，选择原图和“镭射效果控制图”即可还原动态镭射。桌面端用鼠标扫光，移动端可开启晃动感应。</p>
+            </div>
+            <div class="status-pill" id="status-pill">等待导入素材</div>
+        </header>
+
+        <section class="layout">
+            <aside>
+                <div class="panel">
+                    <div class="section-title">
+                        <span>导入素材</span>
+                        <span class="tiny">原图 + 控制图</span>
+                    </div>
+
+                    <div class="drop-zone" id="drop-zone">
+                        <strong>拖入图片或解压后的文件夹</strong>
+                        <p>控制图通常在压缩包的“镭射效果控制图”文件夹里。也可以分别点击下方按钮选择。</p>
+                        <div class="button-row">
+                            <button type="button" id="pick-files-btn">选择多张图片</button>
+                            <button type="button" class="secondary" id="pick-folder-btn">选择文件夹</button>
+                        </div>
+                        <input class="file-input" id="files-input" type="file" accept="image/*" multiple />
+                        <input class="file-input" id="folder-input" type="file" accept="image/*" webkitdirectory directory multiple />
+                    </div>
+
+                    <div class="slots">
+                        <div class="slot" id="base-slot" data-slot="base">
+                            <div class="thumb" id="base-thumb"></div>
+                            <div class="slot-name">
+                                <b>卡面原图</b>
+                                <span id="base-name">尚未选择</span>
+                            </div>
+                            <div class="button-row">
+                                <button type="button" class="secondary" id="pick-base-btn">选择</button>
+                            </div>
+                            <input class="file-input" id="base-input" type="file" accept="image/*" />
+                        </div>
+
+                        <div class="slot" id="mask-slot" data-slot="mask">
+                            <div class="thumb" id="mask-thumb"></div>
+                            <div class="slot-name">
+                                <b>镭射效果控制图</b>
+                                <span id="mask-name">尚未选择</span>
+                            </div>
+                            <div class="button-row">
+                                <button type="button" class="secondary" id="pick-mask-btn">选择</button>
+                            </div>
+                            <input class="file-input" id="mask-input" type="file" accept="image/*" />
+                        </div>
+                    </div>
+
+                    <p class="hint">小技巧：如果两个文件同名，一个在根目录、一个在“镭射效果控制图”目录，页面会自动配对。</p>
+                </div>
+
+                <div class="panel">
+                    <div class="section-title">
+                        <span>镭射参数</span>
+                        <button type="button" class="secondary" id="reset-btn">重置</button>
+                    </div>
+                    <div class="controls">
+                        <div class="control">
+                            <label for="intensity">镭射强度</label>
+                            <input id="intensity" type="range" min="0" max="2" value="1" step="0.01" />
+                            <output id="intensity-out">1.00</output>
+                        </div>
+                        <div class="control">
+                            <label for="skin-protection">肤色保护</label>
+                            <input id="skin-protection" type="range" min="0" max="2" value="1" step="0.01" />
+                            <output id="skin-protection-out">1.00</output>
+                        </div>
+                        <div class="control">
+                            <label for="cloth-boost">衣物增强</label>
+                            <input id="cloth-boost" type="range" min="0" max="2" value="0.68" step="0.01" />
+                            <output id="cloth-boost-out">0.68</output>
+                        </div>
+                        <div class="control">
+                            <label for="hue-start">起始色相</label>
+                            <input id="hue-start" type="range" min="0" max="360" value="0" step="1" />
+                            <output id="hue-start-out">0</output>
+                        </div>
+                        <div class="control">
+                            <label for="hue-range">色相范围</label>
+                            <input id="hue-range" type="range" min="30" max="720" value="360" step="1" />
+                            <output id="hue-range-out">360</output>
+                        </div>
+                        <div class="control">
+                            <label for="speed">流光速度</label>
+                            <input id="speed" type="range" min="0" max="2.5" value="1" step="0.01" />
+                            <output id="speed-out">1.00</output>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel" id="asset-panel" hidden>
+                    <div class="section-title">
+                        <span>已导入图片</span>
+                        <span class="tiny" id="asset-count">0 张</span>
+                    </div>
+                    <div class="asset-list" id="asset-list"></div>
+                </div>
+            </aside>
+
+            <section class="preview-shell">
+                <div class="preview-head">
+                    <div class="preview-title">
+                        <b id="preview-title">镭射预览</b>
+                        <span id="preview-subtitle">导入卡面原图和控制图后开始渲染</span>
+                    </div>
+                    <div class="preview-actions">
+                        <button type="button" id="toggle-btn" disabled>关闭镭射</button>
+                        <button type="button" class="secondary" id="motion-btn">开启晃动</button>
+                        <button type="button" class="secondary" id="save-btn" disabled>保存当前效果</button>
+                    </div>
+                </div>
+                <div class="stage-wrap">
+                    <div class="laser-stage" id="laser-stage">
+                        <canvas id="laser-canvas" width="828" height="1242" aria-label="镭射图动态预览"></canvas>
+                        <div class="laser-status" id="laser-status">
+                            <strong>请选择素材</strong>
+                            <span>需要一张卡面原图和一张镭射效果控制图。</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </section>
+    </main>
+
+    <script>
+        const state = {
+            assets: [],
+            baseAsset: null,
+            maskAsset: null,
+            baseImage: null,
+            maskImage: null,
+            objectUrls: new Set(),
+            ready: false,
+            enabled: true,
+            pointerX: 0.5,
+            pointerY: 0.5,
+            animationFrame: null,
+            motionEnabled: false,
+            motionListening: false,
+            motionBaseline: null,
+            config: {
+                laser_intensity: 1,
+                skin_protection: 1,
+                cloth_boost: 0.68,
+                hue_start: 0,
+                hue_range: 1,
+                speed: 1
+            }
+        };
+
+        const canvas = document.getElementById('laser-canvas');
+        const context = canvas.getContext('2d');
+        const stage = document.getElementById('laser-stage');
+        const statusBox = document.getElementById('laser-status');
+        const toggleBtn = document.getElementById('toggle-btn');
+        const motionBtn = document.getElementById('motion-btn');
+        const saveBtn = document.getElementById('save-btn');
+        const statusPill = document.getElementById('status-pill');
+        const previewTitle = document.getElementById('preview-title');
+        const previewSubtitle = document.getElementById('preview-subtitle');
+        const maskCanvas = document.createElement('canvas');
+        const effectCanvas = document.createElement('canvas');
+
+        const imageExtPattern = /\.(png|jpe?g|webp|gif|bmp|avif)$/i;
+
+        function byId(id) {
+            return document.getElementById(id);
+        }
+
+        function normalizeFileName(name, fallback = '镭射展示') {
+            const cleaned = String(name || '')
+                .replace(/[\\/:*?"<>|]/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+            return cleaned || fallback;
+        }
+
+        function stripExtension(name) {
+            return String(name || '').replace(/\.[a-zA-Z0-9]+$/, '');
+        }
+
+        function normalizedStem(name) {
+            return stripExtension(name)
+                .replace(/[_\-\s]*(镭射效果控制图|镭射控制图|控制图|mask|cover|upgrade|shine)$/i, '')
+                .replace(/\s+/g, '')
+                .toLowerCase();
+        }
+
+        function isLikelyControlImage(file, explicitPath = '') {
+            const path = `${explicitPath || file.webkitRelativePath || ''}/${file.name}`.toLowerCase();
+            return /镭射效果控制图|镭射控制图|控制图|upgrade|cover|mask|shine|laser/.test(path);
+        }
+
+        function findMatchingControlAsset(baseAsset) {
+            if (!baseAsset) return null;
+            const baseStem = normalizedStem(baseAsset.name);
+            return state.assets.find(asset =>
+                asset !== baseAsset &&
+                asset.isControl &&
+                normalizedStem(asset.name) === baseStem
+            ) || null;
+        }
+
+        function findMatchingBaseAsset(maskAsset) {
+            if (!maskAsset) return null;
+            const maskStem = normalizedStem(maskAsset.name);
+            return state.assets.find(asset =>
+                asset !== maskAsset &&
+                !asset.isControl &&
+                normalizedStem(asset.name) === maskStem
+            ) || null;
+        }
+
+        function loadImage(url) {
+            return new Promise((resolve, reject) => {
+                const image = new Image();
+                image.onload = () => resolve(image);
+                image.onerror = () => reject(new Error('图片加载失败'));
+                image.src = url;
+            });
+        }
+
+        function positiveModulo(value, divisor) {
+            return ((value % divisor) + divisor) % divisor;
+        }
+
+        function showMessage(title, message) {
+            statusBox.style.display = 'flex';
+            statusBox.replaceChildren();
+            const strong = document.createElement('strong');
+            strong.innerText = title;
+            const span = document.createElement('span');
+            span.innerText = message;
+            statusBox.appendChild(strong);
+            statusBox.appendChild(span);
+        }
+
+        function setThumb(slot, asset) {
+            const thumb = byId(`${slot}-thumb`);
+            const name = byId(`${slot}-name`);
+            thumb.replaceChildren();
+            if (!asset) {
+                name.innerText = '尚未选择';
+                return;
+            }
+            const image = document.createElement('img');
+            image.alt = asset.name;
+            image.src = asset.url;
+            thumb.appendChild(image);
+            name.innerText = asset.path || asset.name;
+        }
+
+        function updateOutputs() {
+            byId('intensity-out').innerText = Number(byId('intensity').value).toFixed(2);
+            byId('skin-protection-out').innerText = Number(byId('skin-protection').value).toFixed(2);
+            byId('cloth-boost-out').innerText = Number(byId('cloth-boost').value).toFixed(2);
+            byId('hue-start-out').innerText = byId('hue-start').value;
+            byId('hue-range-out').innerText = byId('hue-range').value;
+            byId('speed-out').innerText = Number(byId('speed').value).toFixed(2);
+
+            state.config.laser_intensity = Number(byId('intensity').value);
+            state.config.skin_protection = Number(byId('skin-protection').value);
+            state.config.cloth_boost = Number(byId('cloth-boost').value);
+            state.config.hue_start = Number(byId('hue-start').value) / 360;
+            state.config.hue_range = Number(byId('hue-range').value) / 360;
+            state.config.speed = Number(byId('speed').value);
+        }
+
+        function rebuildMask() {
+            if (!state.baseImage || !state.maskImage) return;
+
+            const renderWidth = Math.min(1400, state.baseImage.naturalWidth || state.baseImage.width || 828);
+            const renderHeight = Math.round(
+                renderWidth * (state.baseImage.naturalHeight || state.baseImage.height || 1242) /
+                (state.baseImage.naturalWidth || state.baseImage.width || 828)
+            );
+
+            canvas.width = renderWidth;
+            canvas.height = renderHeight;
+            maskCanvas.width = renderWidth;
+            maskCanvas.height = renderHeight;
+            effectCanvas.width = renderWidth;
+            effectCanvas.height = renderHeight;
+
+            const maskContext = maskCanvas.getContext('2d', { willReadFrequently: true });
+            maskContext.clearRect(0, 0, renderWidth, renderHeight);
+            maskContext.drawImage(state.maskImage, 0, 0, renderWidth, renderHeight);
+            const maskPixels = maskContext.getImageData(0, 0, renderWidth, renderHeight);
+            const skinProtection = Math.max(0, Number(state.config.skin_protection) || 0);
+            const clothBoost = Math.max(0, Number(state.config.cloth_boost) || 0);
+            const maskExponent = 0.82 + skinProtection * 0.34;
+            const maskBoost = 0.72 + clothBoost * 0.42;
+
+            for (let offset = 0; offset < maskPixels.data.length; offset += 4) {
+                const luminance = (
+                    maskPixels.data[offset] * 0.2126 +
+                    maskPixels.data[offset + 1] * 0.7152 +
+                    maskPixels.data[offset + 2] * 0.0722
+                ) / 255;
+                const alpha = Math.min(1, Math.pow(luminance, maskExponent) * maskBoost);
+                maskPixels.data[offset] = 255;
+                maskPixels.data[offset + 1] = 255;
+                maskPixels.data[offset + 2] = 255;
+                maskPixels.data[offset + 3] = Math.round(alpha * 255);
+            }
+            maskContext.putImageData(maskPixels, 0, 0);
+        }
+
+        function drawLaserFrame(timestamp = 0) {
+            if (!state.ready || !state.baseImage) return;
+
+            const width = canvas.width;
+            const height = canvas.height;
+            context.globalAlpha = 1;
+            context.globalCompositeOperation = 'source-over';
+            context.clearRect(0, 0, width, height);
+            context.drawImage(state.baseImage, 0, 0, width, height);
+
+            if (!state.enabled) return;
+
+            const effectContext = effectCanvas.getContext('2d');
+            const animatedPhase = positiveModulo(
+                timestamp * 0.000045 * Math.max(0, state.config.speed) +
+                state.pointerX * 0.55 +
+                state.pointerY * 0.2,
+                1
+            );
+            const angle = (-55 + state.pointerX * 70) * Math.PI / 180;
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const radius = Math.hypot(width, height) * 0.72;
+            const x0 = centerX - Math.cos(angle) * radius;
+            const y0 = centerY - Math.sin(angle) * radius;
+            const x1 = centerX + Math.cos(angle) * radius;
+            const y1 = centerY + Math.sin(angle) * radius;
+
+            effectContext.globalAlpha = 1;
+            effectContext.globalCompositeOperation = 'source-over';
+            effectContext.clearRect(0, 0, width, height);
+
+            const rainbow = effectContext.createLinearGradient(x0, y0, x1, y1);
+            const colorStops = 10;
+            for (let index = 0; index <= colorStops; index++) {
+                const position = index / colorStops;
+                const hueProgress = positiveModulo(position + animatedPhase, 1);
+                const hue = positiveModulo(
+                    (Number(state.config.hue_start) + hueProgress * Number(state.config.hue_range)) * 360,
+                    360
+                );
+                rainbow.addColorStop(position, `hsl(${hue} 94% 58%)`);
+            }
+            effectContext.fillStyle = rainbow;
+            effectContext.fillRect(0, 0, width, height);
+            effectContext.globalCompositeOperation = 'destination-in';
+            effectContext.drawImage(maskCanvas, 0, 0);
+
+            const laserIntensity = Math.max(0, Number(state.config.laser_intensity) || 0);
+            context.globalCompositeOperation = 'source-over';
+            context.globalAlpha = Math.min(0.48, 0.16 + laserIntensity * 0.2);
+            context.drawImage(effectCanvas, 0, 0);
+            context.globalCompositeOperation = 'screen';
+            context.globalAlpha = Math.min(0.38, 0.1 + laserIntensity * 0.16);
+            context.drawImage(effectCanvas, 0, 0);
+
+            effectContext.globalCompositeOperation = 'source-over';
+            effectContext.clearRect(0, 0, width, height);
+            const shine = effectContext.createLinearGradient(x0, y0, x1, y1);
+            const shineCenter = positiveModulo(animatedPhase * 1.35, 1);
+            const shineWidth = 0.075;
+            const shineStops = [
+                [0, 'rgba(255,255,255,0)'],
+                [Math.max(0, shineCenter - shineWidth), 'rgba(255,255,255,0)'],
+                [shineCenter, 'rgba(255,255,255,0.95)'],
+                [Math.min(1, shineCenter + shineWidth), 'rgba(255,255,255,0)'],
+                [1, 'rgba(255,255,255,0)']
+            ];
+            shineStops
+                .sort((left, right) => left[0] - right[0])
+                .forEach(([position, color]) => shine.addColorStop(position, color));
+            effectContext.fillStyle = shine;
+            effectContext.fillRect(0, 0, width, height);
+            effectContext.globalCompositeOperation = 'destination-in';
+            effectContext.drawImage(maskCanvas, 0, 0);
+
+            context.globalCompositeOperation = 'screen';
+            context.globalAlpha = Math.min(0.38, 0.12 + laserIntensity * 0.12);
+            context.drawImage(effectCanvas, 0, 0);
+            context.globalAlpha = 1;
+            context.globalCompositeOperation = 'source-over';
+        }
+
+        function startAnimation() {
+            if (state.animationFrame !== null) return;
+            const animate = timestamp => {
+                if (state.ready && state.enabled) drawLaserFrame(timestamp);
+                state.animationFrame = requestAnimationFrame(animate);
+            };
+            state.animationFrame = requestAnimationFrame(animate);
+        }
+
+        async function refreshRenderer() {
+            state.ready = false;
+            toggleBtn.disabled = true;
+            saveBtn.disabled = true;
+
+            if (!state.baseAsset || !state.maskAsset) {
+                statusPill.innerText = '等待导入素材';
+                previewTitle.innerText = '镭射预览';
+                previewSubtitle.innerText = '导入卡面原图和控制图后开始渲染';
+                showMessage('请选择素材', '需要一张卡面原图和一张镭射效果控制图。');
+                return;
+            }
+
+            showMessage('正在加载', '正在读取卡面原图和镭射效果控制图...');
+            statusPill.innerText = '正在渲染';
+            previewTitle.innerText = stripExtension(state.baseAsset.name);
+            previewSubtitle.innerText = `${state.baseAsset.name} + ${state.maskAsset.name}`;
+
+            try {
+                const [baseImage, maskImage] = await Promise.all([
+                    loadImage(state.baseAsset.url),
+                    loadImage(state.maskAsset.url)
+                ]);
+                state.baseImage = baseImage;
+                state.maskImage = maskImage;
+                rebuildMask();
+                state.ready = true;
+                state.enabled = true;
+                statusBox.style.display = 'none';
+                toggleBtn.innerText = '关闭镭射';
+                toggleBtn.disabled = false;
+                saveBtn.disabled = false;
+                statusPill.innerText = '预览已就绪';
+                drawLaserFrame(performance.now());
+                startAnimation();
+            } catch (error) {
+                console.error(error);
+                statusPill.innerText = '加载失败';
+                showMessage('加载失败', `${error.message}，请重新选择图片。`);
+            }
+        }
+
+        async function setAsset(slot, asset) {
+            if (!asset) return;
+            if (slot === 'base') {
+                state.baseAsset = asset;
+                setThumb('base', asset);
+                const matchingControl = findMatchingControlAsset(asset);
+                if (matchingControl) {
+                    state.maskAsset = matchingControl;
+                    setThumb('mask', matchingControl);
+                }
+            } else {
+                state.maskAsset = asset;
+                setThumb('mask', asset);
+                const matchingBase = findMatchingBaseAsset(asset);
+                if (matchingBase) {
+                    state.baseAsset = matchingBase;
+                    setThumb('base', matchingBase);
+                }
+            }
+            await refreshRenderer();
+            renderAssetList();
+        }
+
+        function renderAssetList() {
+            const panel = byId('asset-panel');
+            const list = byId('asset-list');
+            const count = byId('asset-count');
+            panel.hidden = state.assets.length === 0;
+            count.innerText = `${state.assets.length} 张`;
+            list.replaceChildren();
+
+            state.assets.forEach(asset => {
+                const row = document.createElement('div');
+                row.className = 'asset';
+
+                const name = document.createElement('div');
+                name.className = 'asset-name';
+                name.title = asset.path || asset.name;
+                const nameText = document.createElement('span');
+                nameText.innerText = asset.path || asset.name;
+                name.appendChild(nameText);
+                if (asset.isControl) {
+                    const tag = document.createElement('span');
+                    tag.className = 'badge';
+                    tag.innerText = '控制图';
+                    name.appendChild(tag);
+                }
+
+                const baseButton = document.createElement('button');
+                baseButton.type = 'button';
+                baseButton.className = asset === state.baseAsset ? '' : 'secondary';
+                baseButton.innerText = '原图';
+                baseButton.addEventListener('click', () => setAsset('base', asset));
+
+                const maskButton = document.createElement('button');
+                maskButton.type = 'button';
+                maskButton.className = asset === state.maskAsset ? '' : 'secondary';
+                maskButton.innerText = '控制';
+                maskButton.addEventListener('click', () => setAsset('mask', asset));
+
+                row.appendChild(name);
+                row.appendChild(baseButton);
+                row.appendChild(maskButton);
+                list.appendChild(row);
+            });
+        }
+
+        function pickBestPair(newAssets) {
+            const allAssets = state.assets.length ? state.assets : newAssets;
+            const controls = allAssets.filter(asset => asset.isControl);
+            const bases = allAssets.filter(asset => !asset.isControl);
+
+            for (const control of controls) {
+                const controlStem = normalizedStem(control.name);
+                const exactBase = bases.find(base => normalizedStem(base.name) === controlStem);
+                if (exactBase) return { base: exactBase, mask: control };
+            }
+
+            if (bases.length === 1 && controls.length >= 1) {
+                return { base: bases[0], mask: controls[0] };
+            }
+
+            if (!controls.length && allAssets.length >= 2) {
+                return { base: allAssets[0], mask: allAssets[1] };
+            }
+
+            return {
+                base: state.baseAsset || bases[0] || null,
+                mask: state.maskAsset || controls[0] || null
+            };
+        }
+
+        function readEntryFiles(entry, prefix = '') {
+            if (!entry) return Promise.resolve([]);
+
+            if (entry.isFile) {
+                return new Promise(resolve => {
+                    entry.file(file => {
+                        resolve([{ file, path: `${prefix}${file.name}` }]);
+                    }, () => resolve([]));
+                });
+            }
+
+            if (!entry.isDirectory) return Promise.resolve([]);
+
+            const reader = entry.createReader();
+            const directoryPrefix = `${prefix}${entry.name}/`;
+            const batches = [];
+
+            return new Promise(resolve => {
+                const readBatch = () => {
+                    reader.readEntries(async entries => {
+                        if (!entries.length) {
+                            const nested = await Promise.all(batches);
+                            resolve(nested.flat());
+                            return;
+                        }
+                        batches.push(Promise.all(entries.map(item => readEntryFiles(item, directoryPrefix))).then(items => items.flat()));
+                        readBatch();
+                    }, () => resolve([]));
+                };
+                readBatch();
+            });
+        }
+
+        async function getDroppedFileRecords(dataTransfer) {
+            const entries = Array.from(dataTransfer.items || [])
+                .map(item => typeof item.webkitGetAsEntry === 'function' ? item.webkitGetAsEntry() : null)
+                .filter(Boolean);
+
+            if (entries.length) {
+                const nested = await Promise.all(entries.map(entry => readEntryFiles(entry)));
+                return nested.flat();
+            }
+
+            return Array.from(dataTransfer.files || []).map(file => ({
+                file,
+                path: file.webkitRelativePath || file.name
+            }));
+        }
+
+        async function importFiles(fileList) {
+            const fileRecords = Array.from(fileList)
+                .map(item => item?.file ? item : {
+                    file: item,
+                    path: item?.webkitRelativePath || item?.name || ''
+                })
+                .filter(item => item.file && (item.file.type.startsWith('image/') || imageExtPattern.test(item.file.name)));
+
+            if (!fileRecords.length) {
+                statusPill.innerText = '没有识别到图片';
+                return;
+            }
+
+            const newAssets = fileRecords.map(({ file, path }) => {
+                const url = URL.createObjectURL(file);
+                state.objectUrls.add(url);
+                return {
+                    file,
+                    url,
+                    name: file.name,
+                    path: path || file.webkitRelativePath || file.name,
+                    isControl: isLikelyControlImage(file, path)
+                };
+            });
+
+            state.assets.push(...newAssets);
+            const pair = pickBestPair(newAssets);
+            if (pair.base) {
+                state.baseAsset = pair.base;
+                setThumb('base', pair.base);
+            }
+            if (pair.mask) {
+                state.maskAsset = pair.mask;
+                setThumb('mask', pair.mask);
+            }
+            renderAssetList();
+            await refreshRenderer();
+        }
+
+        function bindFileInput(buttonId, inputId, handler) {
+            const input = byId(inputId);
+            byId(buttonId).addEventListener('click', () => input.click());
+            input.addEventListener('change', event => {
+                handler(event.target.files);
+                input.value = '';
+            });
+        }
+
+        function bindSlotDrop(slotId, slot) {
+            const element = byId(slotId);
+            element.addEventListener('dragover', event => {
+                event.preventDefault();
+                element.classList.add('dragging');
+            });
+            element.addEventListener('dragleave', () => element.classList.remove('dragging'));
+            element.addEventListener('drop', async event => {
+                event.preventDefault();
+                element.classList.remove('dragging');
+                const records = await getDroppedFileRecords(event.dataTransfer);
+                const record = records.find(item => item.file.type.startsWith('image/') || imageExtPattern.test(item.file.name));
+                if (!record) return;
+                const { file, path } = record;
+                const url = URL.createObjectURL(file);
+                state.objectUrls.add(url);
+                const asset = {
+                    file,
+                    url,
+                    name: file.name,
+                    path: path || file.webkitRelativePath || file.name,
+                    isControl: slot === 'mask' || isLikelyControlImage(file, path)
+                };
+                state.assets.push(asset);
+                await setAsset(slot, asset);
+            });
+        }
+
+        function getScreenOrientationAngle() {
+            const angle = screen.orientation?.angle ?? window.orientation ?? 0;
+            return ((Number(angle) % 360) + 360) % 360;
+        }
+
+        function normalizeTiltDelta(value) {
+            return ((value + 180) % 360 + 360) % 360 - 180;
+        }
+
+        function handleDeviceOrientation(event) {
+            if (!state.motionEnabled || event.beta == null || event.gamma == null) return;
+
+            const angle = getScreenOrientationAngle();
+            if (!state.motionBaseline || state.motionBaseline.angle !== angle) {
+                state.motionBaseline = { beta: event.beta, gamma: event.gamma, angle };
+                motionBtn.innerText = '晃动已开启';
+                return;
+            }
+
+            const betaDelta = normalizeTiltDelta(event.beta - state.motionBaseline.beta);
+            const gammaDelta = normalizeTiltDelta(event.gamma - state.motionBaseline.gamma);
+            let horizontal = gammaDelta;
+            let vertical = betaDelta;
+
+            if (angle === 90) {
+                horizontal = betaDelta;
+                vertical = -gammaDelta;
+            } else if (angle === 270) {
+                horizontal = -betaDelta;
+                vertical = gammaDelta;
+            } else if (angle === 180) {
+                horizontal = -gammaDelta;
+                vertical = -betaDelta;
+            }
+
+            const targetX = Math.max(0, Math.min(1, 0.5 + horizontal / 60));
+            const targetY = Math.max(0, Math.min(1, 0.5 + vertical / 60));
+            state.pointerX += (targetX - state.pointerX) * 0.35;
+            state.pointerY += (targetY - state.pointerY) * 0.35;
+        }
+
+        async function enableMotion() {
+            if (typeof DeviceOrientationEvent === 'undefined') {
+                alert('当前浏览器或设备不支持晃动感应。');
+                motionBtn.innerText = '设备不支持晃动';
+                motionBtn.disabled = true;
+                return;
+            }
+
+            try {
+                if (!state.motionEnabled && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    const permission = await DeviceOrientationEvent.requestPermission();
+                    if (permission !== 'granted') throw new Error('未获得动作与方向访问权限');
+                }
+                if (!state.motionListening) {
+                    window.addEventListener('deviceorientation', handleDeviceOrientation, true);
+                    state.motionListening = true;
+                }
+                state.motionEnabled = true;
+                state.motionBaseline = null;
+                motionBtn.innerText = '请晃动手机';
+            } catch (error) {
+                alert(`无法开启晃动感应：${error.message}`);
+            }
+        }
+
+        function saveCurrentPreview() {
+            if (!state.ready) return;
+            drawLaserFrame(performance.now());
+            canvas.toBlob(blob => {
+                if (!blob) {
+                    alert('无法生成当前镭射预览。');
+                    return;
+                }
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                link.href = url;
+                link.download = `${normalizeFileName(stripExtension(state.baseAsset?.name), '镭射展示')}_镭射展示.png`;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            }, 'image/png');
+        }
+
+        function bindControls() {
+            ['intensity', 'skin-protection', 'cloth-boost', 'hue-start', 'hue-range', 'speed'].forEach(id => {
+                byId(id).addEventListener('input', () => {
+                    const shouldRebuildMask = id === 'skin-protection' || id === 'cloth-boost';
+                    updateOutputs();
+                    if (shouldRebuildMask && state.ready) rebuildMask();
+                    drawLaserFrame(performance.now());
+                });
+            });
+
+            byId('reset-btn').addEventListener('click', () => {
+                byId('intensity').value = '1';
+                byId('skin-protection').value = '1';
+                byId('cloth-boost').value = '0.68';
+                byId('hue-start').value = '0';
+                byId('hue-range').value = '360';
+                byId('speed').value = '1';
+                updateOutputs();
+                if (state.ready) rebuildMask();
+                drawLaserFrame(performance.now());
+            });
+        }
+
+        function init() {
+            bindFileInput('pick-files-btn', 'files-input', importFiles);
+            bindFileInput('pick-folder-btn', 'folder-input', importFiles);
+            bindFileInput('pick-base-btn', 'base-input', files => importFiles(files).then(() => {
+                const latest = state.assets[state.assets.length - 1];
+                if (latest) setAsset('base', latest);
+            }));
+            bindFileInput('pick-mask-btn', 'mask-input', files => importFiles(files).then(() => {
+                const latest = state.assets[state.assets.length - 1];
+                if (latest) setAsset('mask', latest);
+            }));
+
+            const dropZone = byId('drop-zone');
+            dropZone.addEventListener('dragover', event => {
+                event.preventDefault();
+                dropZone.classList.add('dragging');
+            });
+            dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragging'));
+            dropZone.addEventListener('drop', async event => {
+                event.preventDefault();
+                dropZone.classList.remove('dragging');
+                importFiles(await getDroppedFileRecords(event.dataTransfer));
+            });
+
+            bindSlotDrop('base-slot', 'base');
+            bindSlotDrop('mask-slot', 'mask');
+
+            stage.addEventListener('pointermove', event => {
+                const rect = stage.getBoundingClientRect();
+                state.pointerX = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+                state.pointerY = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height));
+                drawLaserFrame(performance.now());
+            });
+
+            toggleBtn.addEventListener('click', () => {
+                state.enabled = !state.enabled;
+                toggleBtn.innerText = state.enabled ? '关闭镭射' : '开启镭射';
+                drawLaserFrame(performance.now());
+            });
+            motionBtn.addEventListener('click', enableMotion);
+            saveBtn.addEventListener('click', saveCurrentPreview);
+
+            const isMobileDevice = navigator.userAgentData?.mobile === true ||
+                /Android|iPhone|iPad|iPod|Mobile|HarmonyOS/i.test(navigator.userAgent) ||
+                (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            if (!isMobileDevice || typeof DeviceOrientationEvent === 'undefined') {
+                motionBtn.style.display = 'none';
+            }
+
+            bindControls();
+            updateOutputs();
+            drawLaserFrame(performance.now());
+        }
+
+        window.addEventListener('beforeunload', () => {
+            state.objectUrls.forEach(url => URL.revokeObjectURL(url));
+        });
+
+        init();
+    </script>
+</body>
+
+</html>

@@ -443,6 +443,7 @@
         let fileUrls = [];
         let fileNames = [];
         let laserControlFiles = [];
+        let laserAssetPairs = [];
         let isDownloading = false;
         const laserRenderers = new Set();
         const singleDownloadsInProgress = new WeakSet();
@@ -1201,6 +1202,7 @@
             fileUrls = [];
             fileNames = [];
             laserControlFiles = [];
+            laserAssetPairs = [];
             laserRenderers.forEach(renderer => laserVisibilityObserver?.unobserve(renderer.stage));
             laserRenderers.clear();
             laserMotionButtons.clear();
@@ -1236,6 +1238,11 @@
                     wrapper.classList.add('has-laser');
                     wrapper.appendChild(createLaserPreview(cardInfo, title.innerText));
                     fileUrls.push(imgUrl);
+                    laserAssetPairs.push({
+                        name: title.innerText,
+                        imageUrl: imgUrl,
+                        controlUrl: upgradeCoverUrl
+                    });
                 } else {
                     const img = document.createElement('img');
                     img.alt = title.innerText;
@@ -1257,6 +1264,269 @@
             });
         }
 
+        function buildLaserGalleryHtml(items) {
+            const galleryData = JSON.stringify(items).replace(/</g, '\\u003c');
+            return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>镭射图展示</title>
+    <style>
+        :root { color-scheme: dark; --text:#f8fafc; --muted:#a7b0c3; --line:rgba(255,255,255,.16); --main:#10b981; }
+        * { box-sizing:border-box; }
+        body { margin:0; min-height:100vh; overflow:hidden; color:var(--text); font-family:"Segoe UI","Microsoft YaHei",Arial,sans-serif; background:#020403; }
+        .page { min-height:100vh; display:grid; grid-template-rows:1fr auto; align-items:center; padding:26px 0 32px; }
+        .carousel { position:relative; width:100vw; height:min(76vh,900px); display:flex; align-items:center; justify-content:center; perspective:1200px; touch-action:pan-y; user-select:none; }
+        .side { position:absolute; top:50%; width:min(30vw,260px); height:72%; border-radius:18px; opacity:.72; overflow:hidden; background:#111827; box-shadow:0 28px 80px rgba(0,0,0,.58); transform:translateY(-50%) scale(.86); }
+        .side img { width:100%; height:100%; object-fit:cover; display:block; }
+        .side.prev { left:-7vw; }
+        .side.next { right:-7vw; }
+        .stage { position:relative; width:min(70vw,560px); max-width:calc(100vw - 48px); max-height:100%; border-radius:22px; overflow:hidden; background:#020617; box-shadow:0 34px 110px rgba(0,0,0,.72),0 0 0 1px rgba(255,255,255,.12); cursor:grab; touch-action:none; }
+        .stage:active { cursor:grabbing; }
+        canvas { display:block; width:100%; height:auto; max-height:min(76vh,900px); }
+        .status { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:26px; color:#dbeafe; background:rgba(2,6,23,.9); text-align:center; line-height:1.6; }
+        .nav { display:none; position:absolute; top:50%; width:52px; height:72px; padding:0; border:1px solid var(--line); border-radius:8px; color:#fff; background:rgba(15,23,42,.62); box-shadow:0 16px 38px rgba(0,0,0,.32); transform:translateY(-50%); backdrop-filter:blur(10px); font-size:48px; line-height:1; align-items:center; justify-content:center; }
+        .nav:hover { background:rgba(16,185,129,.78); }
+        .nav.prev { left:18px; }
+        .nav.next { right:18px; }
+        .caption { display:grid; place-items:center; gap:13px; padding:0 18px; text-align:center; }
+        .name { display:flex; align-items:center; justify-content:center; gap:18px; max-width:min(760px,92vw); color:#ece9ff; text-shadow:0 0 20px rgba(168,85,247,.62); font-size:clamp(24px,5vw,42px); font-weight:800; letter-spacing:0; }
+        .name:before,.name:after { content:""; width:min(130px,18vw); height:1px; background:linear-gradient(90deg,transparent,#c4b5fd,transparent); }
+        .actions { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; }
+        button { border:1px solid rgba(255,255,255,.18); border-radius:8px; padding:10px 16px; color:#fff; background:rgba(16,185,129,.9); font:inherit; font-weight:800; cursor:pointer; box-shadow:0 12px 28px rgba(16,185,129,.22); }
+        button.secondary { background:rgba(30,41,59,.82); box-shadow:none; }
+        button:disabled { opacity:.5; cursor:not-allowed; }
+        .counter { color:var(--muted); font-size:13px; }
+        @media (min-width:1025px) and (hover:hover) and (pointer:fine) {
+            .side { width:min(30vw,400px); }
+            .side.prev { left:50%; right:auto; transform:translate(calc(-50% - min(39vw,500px)), -50%) scale(.86); }
+            .side.next { left:50%; right:auto; transform:translate(calc(-50% + min(39vw,500px)), -50%) scale(.86); }
+            .nav { display:flex; }
+            .nav.prev { left:50%; right:auto; transform:translate(calc(-50% - min(36vw,430px)), -50%); }
+            .nav.next { left:50%; right:auto; transform:translate(calc(-50% + min(36vw,430px)), -50%); }
+        }
+        @media (max-width:1024px) {
+            .side { width:min(34vw,180px); height:66%; border-radius:14px; }
+            .side.prev { left:50%; right:auto; transform:translate(calc(-50% - min(56vw,430px)), -50%) scale(.86); }
+            .side.next { left:50%; right:auto; transform:translate(calc(-50% + min(56vw,430px)), -50%) scale(.86); }
+        }
+        @media (max-width:700px) {
+            .page { padding:16px 0 22px; }
+            .carousel { height:68vh; }
+            .stage { width:min(82vw,520px); max-width:calc(100vw - 40px); border-radius:18px; }
+            button { padding:9px 12px; font-size:14px; }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <section class="carousel" id="carousel">
+            <div class="side prev"><img id="prev-img" alt=""></div>
+            <div class="stage" id="stage">
+                <canvas id="canvas" width="828" height="1242"></canvas>
+                <div class="status" id="status">正在加载镭射图...</div>
+            </div>
+            <div class="side next"><img id="next-img" alt=""></div>
+            <button class="nav prev" id="prev-btn" type="button">‹</button>
+            <button class="nav next" id="next-btn" type="button">›</button>
+        </section>
+        <section class="caption">
+            <div class="name" id="name">镭射图</div>
+            <div class="actions">
+                <button id="toggle-btn" type="button">关闭镭射</button>
+                <button id="save-btn" class="secondary" type="button">保存效果</button>
+                <button id="motion-btn" class="secondary" type="button">开启晃动</button>
+            </div>
+            <div class="counter" id="counter"></div>
+        </section>
+    </main>
+    <script>
+        const ITEMS = ${galleryData};
+        const state = { index:0, enabled:true, ready:false, baseImage:null, maskImage:null, pointerX:.5, pointerY:.5, motionEnabled:false, motionListening:false, motionBaseline:null };
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const maskCanvas = document.createElement('canvas');
+        const effectCanvas = document.createElement('canvas');
+        const stage = document.getElementById('stage');
+        const statusBox = document.getElementById('status');
+        const nameBox = document.getElementById('name');
+        const counterBox = document.getElementById('counter');
+        const toggleBtn = document.getElementById('toggle-btn');
+        const saveBtn = document.getElementById('save-btn');
+        const motionBtn = document.getElementById('motion-btn');
+
+        function fileSrc(path) { return String(path || '').split('/').map(encodeURIComponent).join('/'); }
+        function mod(value, divisor) { return ((value % divisor) + divisor) % divisor; }
+        function cleanName(name) { return String(name || '镭射图').replace(/[\\\\/:*?"<>|]/g, '').trim() || '镭射图'; }
+        function loadImage(path) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = () => reject(new Error('图片加载失败：' + path));
+                img.src = fileSrc(path);
+            });
+        }
+        function resizeCanvases() {
+            const width = Math.min(1400, state.baseImage.naturalWidth || state.baseImage.width || 828);
+            const height = Math.round(width * (state.baseImage.naturalHeight || state.baseImage.height || 1242) / (state.baseImage.naturalWidth || state.baseImage.width || 828));
+            canvas.width = width; canvas.height = height; maskCanvas.width = width; maskCanvas.height = height; effectCanvas.width = width; effectCanvas.height = height;
+        }
+        function draw(timestamp) {
+            if (!state.ready) return;
+            const width = canvas.width, height = canvas.height;
+            ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.clearRect(0, 0, width, height); ctx.drawImage(state.baseImage, 0, 0, width, height);
+            if (!state.enabled) return;
+            const ectx = effectCanvas.getContext('2d');
+            const phase = mod(timestamp * .000045 + state.pointerX * .55 + state.pointerY * .2, 1);
+            const angle = (-55 + state.pointerX * 70) * Math.PI / 180;
+            const cx = width / 2, cy = height / 2, radius = Math.hypot(width, height) * .72;
+            const x0 = cx - Math.cos(angle) * radius, y0 = cy - Math.sin(angle) * radius, x1 = cx + Math.cos(angle) * radius, y1 = cy + Math.sin(angle) * radius;
+            ectx.globalAlpha = 1; ectx.globalCompositeOperation = 'source-over'; ectx.clearRect(0, 0, width, height);
+            const rainbow = ectx.createLinearGradient(x0, y0, x1, y1);
+            for (let i = 0; i <= 10; i++) rainbow.addColorStop(i / 10, 'hsl(' + mod((i / 10 + phase) * 360, 360) + ' 94% 58%)');
+            ectx.fillStyle = rainbow; ectx.fillRect(0, 0, width, height);
+            ectx.globalCompositeOperation = 'multiply';
+            ectx.filter = 'contrast(170%) brightness(118%)';
+            ectx.drawImage(state.maskImage, 0, 0, width, height);
+            ectx.filter = 'none';
+            ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = .44; ctx.drawImage(effectCanvas, 0, 0);
+            ectx.globalCompositeOperation = 'source-over'; ectx.clearRect(0, 0, width, height);
+            const shine = ectx.createLinearGradient(x0, y0, x1, y1), center = mod(phase * 1.35, 1), sw = .075;
+            [[0,'rgba(255,255,255,0)'],[Math.max(0,center-sw),'rgba(255,255,255,0)'],[center,'rgba(255,255,255,.95)'],[Math.min(1,center+sw),'rgba(255,255,255,0)'],[1,'rgba(255,255,255,0)']]
+                .sort((a,b)=>a[0]-b[0]).forEach(stop => shine.addColorStop(stop[0], stop[1]));
+            ectx.fillStyle = shine; ectx.fillRect(0, 0, width, height);
+            ectx.globalCompositeOperation = 'multiply';
+            ectx.filter = 'contrast(190%) brightness(125%)';
+            ectx.drawImage(state.maskImage, 0, 0, width, height);
+            ectx.filter = 'none';
+            ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = .24; ctx.drawImage(effectCanvas, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+        }
+        function animate(timestamp) { draw(timestamp); requestAnimationFrame(animate); }
+        async function show(index) {
+            if (!ITEMS.length) { statusBox.textContent = '这个压缩包里没有可展示的镭射图。'; return; }
+            state.index = mod(index, ITEMS.length); state.ready = false; statusBox.style.display = 'flex'; statusBox.textContent = '正在加载镭射图...';
+            const item = ITEMS[state.index], prev = ITEMS[mod(state.index - 1, ITEMS.length)], next = ITEMS[mod(state.index + 1, ITEMS.length)];
+            nameBox.textContent = item.title || '镭射图'; counterBox.textContent = (state.index + 1) + ' / ' + ITEMS.length;
+            document.getElementById('prev-img').src = fileSrc(prev.image); document.getElementById('next-img').src = fileSrc(next.image);
+            try {
+                const images = await Promise.all([loadImage(item.image), loadImage(item.mask)]);
+                state.baseImage = images[0]; state.maskImage = images[1]; resizeCanvases(); state.ready = true; statusBox.style.display = 'none'; draw(performance.now());
+            } catch (error) { statusBox.textContent = error.message; }
+        }
+        function change(delta) { show(state.index + delta); }
+        function orientationAngle() { const angle = screen.orientation?.angle ?? window.orientation ?? 0; return ((Number(angle) % 360) + 360) % 360; }
+        function tiltDelta(value) { return ((value + 180) % 360 + 360) % 360 - 180; }
+        function handleOrientation(event) {
+            if (!state.motionEnabled || event.beta == null || event.gamma == null) return;
+            const angle = orientationAngle();
+            if (!state.motionBaseline || state.motionBaseline.angle !== angle) { state.motionBaseline = { beta:event.beta, gamma:event.gamma, angle }; motionBtn.textContent = '晃动已开启'; return; }
+            const beta = tiltDelta(event.beta - state.motionBaseline.beta), gamma = tiltDelta(event.gamma - state.motionBaseline.gamma);
+            let horizontal = gamma, vertical = beta;
+            if (angle === 90) { horizontal = beta; vertical = -gamma; } else if (angle === 270) { horizontal = -beta; vertical = gamma; } else if (angle === 180) { horizontal = -gamma; vertical = -beta; }
+            state.pointerX += (Math.max(0, Math.min(1, .5 + horizontal / 60)) - state.pointerX) * .35;
+            state.pointerY += (Math.max(0, Math.min(1, .5 + vertical / 60)) - state.pointerY) * .35;
+        }
+        async function enableMotion() {
+            if (typeof DeviceOrientationEvent === 'undefined') { alert('当前浏览器或设备不支持晃动感应。'); return; }
+            try {
+                if (!state.motionEnabled && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    const permission = await DeviceOrientationEvent.requestPermission();
+                    if (permission !== 'granted') throw new Error('未获得动作与方向访问权限');
+                }
+                if (!state.motionListening) { window.addEventListener('deviceorientation', handleOrientation, true); state.motionListening = true; }
+                state.motionEnabled = true; state.motionBaseline = null; motionBtn.textContent = '请晃动手机';
+            } catch (error) { alert('无法开启晃动感应：' + error.message); }
+        }
+        stage.addEventListener('pointermove', event => {
+            const rect = stage.getBoundingClientRect();
+            state.pointerX = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+            state.pointerY = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height));
+            draw(performance.now());
+        });
+        let startX = 0;
+        stage.addEventListener('pointerdown', event => { startX = event.clientX; });
+        stage.addEventListener('pointerup', event => { const diff = event.clientX - startX; if (Math.abs(diff) > 42) change(diff > 0 ? -1 : 1); });
+        document.getElementById('prev-btn').addEventListener('click', () => change(-1));
+        document.getElementById('next-btn').addEventListener('click', () => change(1));
+        toggleBtn.addEventListener('click', () => { state.enabled = !state.enabled; toggleBtn.textContent = state.enabled ? '关闭镭射' : '开启镭射'; draw(performance.now()); });
+        saveBtn.addEventListener('click', () => {
+            if (!state.ready) return;
+            draw(performance.now());
+            try {
+                canvas.toBlob(blob => {
+                    if (!blob) { alert('当前浏览器禁止保存本地图片合成结果，可以用本地服务器方式打开此 HTML 后再试。'); return; }
+                    const url = URL.createObjectURL(blob), link = document.createElement('a');
+                    link.href = url; link.download = cleanName(ITEMS[state.index]?.title) + '_镭射效果.png'; document.body.appendChild(link); link.click(); link.remove();
+                    setTimeout(() => URL.revokeObjectURL(url), 1000);
+                }, 'image/png');
+            } catch (error) {
+                alert('当前浏览器禁止保存本地图片合成结果，可以用本地服务器方式打开此 HTML 后再试。');
+            }
+        });
+        motionBtn.addEventListener('click', enableMotion);
+        if (!(navigator.userAgentData?.mobile === true || /Android|iPhone|iPad|iPod|Mobile|HarmonyOS/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))) motionBtn.style.display = 'none';
+        document.addEventListener('keydown', event => { if (event.key === 'ArrowLeft') change(-1); if (event.key === 'ArrowRight') change(1); });
+        show(0); requestAnimationFrame(animate);
+    <\/script>
+</body>
+</html>`;
+        }
+
+        function buildSourceLinkHtml(title, sourceUrl) {
+            const safeTitle = String(title || '数字周边')
+                .replace(/[&<>"']/g, char => ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;'
+                }[char]));
+            const safeUrl = String(sourceUrl || '')
+                .replace(/[&<>"']/g, char => ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;'
+                }[char]));
+            const jsUrl = JSON.stringify(String(sourceUrl || '')).replace(/</g, '\\u003c');
+
+            return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${safeTitle}</title>
+    <style>
+        * { box-sizing:border-box; }
+        body { margin:0; min-height:100vh; display:grid; place-items:center; padding:24px; color:#172033; font-family:"Segoe UI","Microsoft YaHei",Arial,sans-serif; background:linear-gradient(135deg,#f8fafc,#ecfdf5,#fff7ed); }
+        main { width:min(520px,100%); padding:28px; border:1px solid #dce4ee; border-radius:12px; background:rgba(255,255,255,.9); box-shadow:0 18px 60px rgba(15,23,42,.12); text-align:center; }
+        h1 { margin:0 0 12px; font-size:24px; letter-spacing:0; }
+        p { margin:0 0 18px; color:#64748b; line-height:1.65; }
+        a { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:10px 18px; border-radius:8px; color:#fff; background:#10b981; font-weight:800; text-decoration:none; box-shadow:0 12px 26px rgba(16,185,129,.25); }
+        .url { margin-top:16px; color:#64748b; font-size:12px; overflow-wrap:anywhere; }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>${safeTitle}</h1>
+        <p>正在跳转到原数字周边链接，若没有自动打开，请点击下方按钮。</p>
+        <a href="${safeUrl}" id="open-link">打开数字周边</a>
+        <div class="url">${safeUrl}</div>
+    </main>
+    <script>
+        const targetUrl = ${jsUrl};
+        if (targetUrl) {
+            setTimeout(() => {
+                window.location.href = targetUrl;
+            }, 300);
+        }
+    <\/script>
+</body>
+</html>`;
+        }
+
         async function downloadFilesAsZip() {
             if (fileUrls.length === 0) { alert('没有找到可以下载的资源文件！'); return; }
             if (isDownloading) { alert('当前有正在进行的下载任务，请等待其完成后再试！'); return; }
@@ -1264,7 +1534,9 @@
             const targetUrls = [...fileUrls];
             const targetNames = [...fileNames];
             const targetLaserControls = laserControlFiles.map(item => ({ ...item }));
+            const targetLaserPairs = laserAssetPairs.map(item => ({ ...item }));
             const targetZipName = sanitizeFileName(zipName, '数字周边');
+            const sourceLink = document.getElementById('filepath').value.trim();
 
             const createUniqueFileNames = (names, fallbackPrefix) => {
                 const nameOccurrenceMap = {};
@@ -1305,6 +1577,7 @@
             downloadBtn.disabled = true;
 
             const zip = new JSZip();
+            const downloadedPaths = new Map();
             let completedCount = 0;
             const CONCURRENCY_LIMIT = 2;
             let currentIndex = 0;
@@ -1326,7 +1599,9 @@
                         const response = await fetchWithRetry(url, {}, 3, 20000);
                         const blob = await response.blob();
                         inferredExt = inferExtFromUrlOrBlob(url, blob);
-                        zip.file(`${task.directory}${baseName}${inferredExt}`, blob);
+                        const fileName = `${task.directory}${baseName}${inferredExt}`;
+                        zip.file(fileName, blob);
+                        downloadedPaths.set(url, fileName);
                     } catch (error) {
                         zip.file(
                             `${task.directory}${baseName}_下载失败记录_${index + 1}.txt`,
@@ -1341,6 +1616,20 @@
 
             try {
                 await Promise.all(Array.from({ length: Math.min(CONCURRENCY_LIMIT, downloadTasks.length) }, () => downloadWorker()));
+                const laserGalleryItems = targetLaserPairs
+                    .map(item => ({
+                        title: item.name,
+                        image: downloadedPaths.get(item.imageUrl),
+                        mask: downloadedPaths.get(item.controlUrl)
+                    }))
+                    .filter(item => item.image && item.mask);
+                if (laserGalleryItems.length > 0) {
+                    zip.file('镭射图展示.html', buildLaserGalleryHtml(laserGalleryItems));
+                }
+                if (sourceLink) {
+                    zip.file(`${sanitizeFileName(targetZipName, '数字周边')}.html`, buildSourceLinkHtml(targetZipName, sourceLink));
+                }
+
                 progressText.innerText = '资源下载完成，正在拼命压缩中，请稍候...';
                 const content = await zip.generateAsync({ type: 'blob' });
                 saveAs(content, `${targetZipName}.zip`);
