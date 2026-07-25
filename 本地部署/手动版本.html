@@ -767,6 +767,13 @@
                     seenMediaKeys.add(mediaKey);
                     mergedItemList.push({ card_info: { card_name: name, card_img: image } });
                 };
+                const appendVideoItem = (name, videoUrl) => {
+                    if (!name || !videoUrl) return;
+                    const mediaKey = `${name}__${videoUrl}`;
+                    if (seenMediaKeys.has(mediaKey)) return;
+                    seenMediaKeys.add(mediaKey);
+                    mergedItemList.push({ card_info: { card_name: name, video_list: [videoUrl] } });
+                };
 
                 mergedItemList.forEach(item => {
                     const cardInfo = item?.card_info;
@@ -792,7 +799,15 @@
                     const matchesTypeReward = extraRewardTypeNames.has(itemTypeName);
 
                     if (matchesExistingReward || matchesTypeReward) {
-                        appendExtraItem(itemName || itemTypeName, item?.redeem_item_image);
+                        const baseName = itemName || itemTypeName;
+                        appendExtraItem(baseName, item?.redeem_item_image);
+                        // 仅「典藏卡」：在图片之外附带对应视频，视频名 = 图片名 + (视频)
+                        if (itemTypeName === '典藏卡') {
+                            const collectorVideoUrl = item?.card_item?.card_type_info?.content?.animation?.animation_video_urls?.[0];
+                            if (collectorVideoUrl) {
+                                appendVideoItem(baseName + '(视频)', collectorVideoUrl);
+                            }
+                        }
                     }
                 });
 

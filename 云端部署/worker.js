@@ -1423,6 +1423,13 @@ const htmlContent = `
 		            seen.add(key);
 		            itemList.push({ card_info: { card_name: cardName, card_img: cardImg } });
 		        }
+		        function addVideoItem(cardName, videoUrl) {
+		            if (!videoUrl) return;
+		            const key = (cardName || '') + '::' + videoUrl;
+		            if (seen.has(key)) return;
+		            seen.add(key);
+		            itemList.push({ card_info: { card_name: cardName, video_list: [videoUrl] } });
+		        }
 		        itemList.forEach(item => {
 		            const cardInfo = item?.card_info;
 		            if (!cardInfo) return;
@@ -1443,7 +1450,15 @@ const htmlContent = `
 		                itemName === '钻石头像背景' || itemName.endsWith('表情包');
 		            const matchesTypeReward = extraRewardTypeNames.has(itemTypeName);
 		            if (matchesExistingReward || matchesTypeReward) {
-		                addImageItem(itemName || itemTypeName, item?.redeem_item_image);
+		                const baseName = itemName || itemTypeName;
+		                addImageItem(baseName, item?.redeem_item_image);
+		                // 仅「典藏卡」：在图片之外附带对应视频，视频名 = 图片名 + (视频)
+		                if (itemTypeName === '典藏卡') {
+		                    const collectorVideoUrl = item?.card_item?.card_type_info?.content?.animation?.animation_video_urls?.[0];
+		                    if (collectorVideoUrl) {
+		                        addVideoItem(baseName + '(视频)', collectorVideoUrl);
+		                    }
+		                }
 		            }
 		        });
 		        renderGrid(itemList);
@@ -1477,10 +1492,7 @@ const htmlContent = `
 		        image.onerror = () => reject(new Error('图片加载失败：' + source));
 		        image.src = source;
 		    });
-		    return load(url).catch(directError => {
-		        console.warn('图片直连加载失败，尝试 Worker 代理：', directError);
-		        return load('/proxy?url=' + encodeURIComponent(url));
-		    });
+		    return load(url); // 直连加载；请求 UA 由「Bili 典藏卡 UA 改写」浏览器扩展改写，不再回退 CF /proxy
 		}
 		function positiveModulo(value, divisor) {
 		    return ((value % divisor) + divisor) % divisor;
@@ -1744,92 +1756,89 @@ const htmlContent = `
 		    laserRenderers.clear();
 		    laserMotionButtons.clear();
 		
-		    itemList.forEach((item, index) => {
-		        if (!item || !item.card_info) return;
-		
-		        const cardInfo = item.card_info;
-		        const rawVideoUrl = cardInfo.video_list && cardInfo.video_list[0];
-		        const rawImgUrl = cardInfo.card_img;
-		        const upgradeCoverUrl = cardInfo.meta_info?.upgrade_cover_url;
-		
-		        if (!rawVideoUrl && !rawImgUrl) return;
-		
-		        const wrapper = document.createElement('div');
-		        wrapper.className = 'media-card';
-		
-		        const title = document.createElement('div');
-		        title.className = 'title';
-		        title.innerText = sanitizeFileName(cardInfo.card_name || ('未命名素材 ' + (index + 1)));
-		        wrapper._downloadInfo = {
-		            title: title.innerText,
-		            url: rawVideoUrl || rawImgUrl
-		        };
-		
-		        if (rawVideoUrl) {
-		            const video = document.createElement('video');
-		            video.controls = true;
-		            video.preload = 'metadata';
-			video.referrerPolicy = 'no-referrer';
-		            video.setAttribute('playsinline', 'true');
-		            attachMediaRetry(video, rawVideoUrl, '视频');
-		            video.src = rawVideoUrl;
-		            wrapper.appendChild(video);
-		
-		            fileUrls.push(rawVideoUrl);
-		            fileNames.push({
-		                name: title.innerText,
-		                originalUrl: rawVideoUrl,
-		                fetchUrl: rawVideoUrl,
-		                mediaType: 'video',
-		                viaProxy: false
-		            });
-		        } else if (rawImgUrl && upgradeCoverUrl) {
-		            wrapper.classList.add('has-laser');
-		            wrapper.appendChild(createLaserPreview(cardInfo, title.innerText));
-		            fileUrls.push(rawImgUrl);
-		            laserAssetPairs.push({
-		                name: title.innerText,
-		                imageUrl: rawImgUrl,
-		                controlUrl: upgradeCoverUrl
-		            });
-		            fileNames.push({
-		                name: title.innerText,
-		                originalUrl: rawImgUrl,
-		                fetchUrl: rawImgUrl,
-		                mediaType: 'image',
-		                viaProxy: false
-		            });
-		        } else {
-		            const img = document.createElement('img');
-		            img.alt = title.innerText;
-			img.referrerPolicy = 'no-referrer';
-		            attachMediaRetry(img, rawImgUrl, '图片');
-		            img.src = rawImgUrl;
-		            wrapper.appendChild(img);
-		
-		            fileUrls.push(rawImgUrl);
-		            fileNames.push({
-		                name: title.innerText,
-		                originalUrl: rawImgUrl,
-		                fetchUrl: rawImgUrl,
-		                mediaType: 'image',
-		                viaProxy: false
-		            });
-		        }
-		        if (upgradeCoverUrl) {
-		            laserControlFiles.push({
-		                name: title.innerText,
-		                originalUrl: upgradeCoverUrl,
-		                fetchUrl: upgradeCoverUrl,
-		                mediaType: 'laser-control',
-		                viaProxy: false
-		            });
-		        }
-		
-		        wrapper.appendChild(title);
-		        grid.appendChild(wrapper);
-		    });
-		}
+        itemList.forEach((item, index) => {
+            if (!item || !item.card_info) return;
+
+            const cardInfo = item.card_info;
+            const rawVideoUrl = cardInfo.video_list && cardInfo.video_list[0];
+            const rawImgUrl = cardInfo.card_img;
+            const upgradeCoverUrl = cardInfo.meta_info?.upgrade_cover_url;
+
+            if (!rawVideoUrl && !rawImgUrl) return;
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'media-card';
+
+            const title = document.createElement('div');
+            title.className = 'title';
+            title.innerText = sanitizeFileName(cardInfo.card_name || ('未命名素材 ' + (index + 1)));
+            wrapper._downloadInfo = { title: title.innerText, url: rawVideoUrl || rawImgUrl };
+
+            if (rawVideoUrl) {
+                const video = document.createElement('video');
+                video.controls = true;
+                video.preload = 'metadata';
+                video.referrerPolicy = 'no-referrer';
+                video.setAttribute('playsinline', 'true');
+                attachMediaRetry(video, rawVideoUrl, '视频');
+                video.src = rawVideoUrl;
+                wrapper.appendChild(video);
+
+                fileUrls.push(rawVideoUrl);
+                fileNames.push({
+                    name: title.innerText,
+                    originalUrl: rawVideoUrl,
+                    fetchUrl: rawVideoUrl,
+                    mediaType: 'video',
+                    viaProxy: false
+                });
+            } else if (rawImgUrl && upgradeCoverUrl) {
+                wrapper.classList.add('has-laser');
+                wrapper.appendChild(createLaserPreview(cardInfo, title.innerText));
+                fileUrls.push(rawImgUrl);
+                laserAssetPairs.push({
+                    name: title.innerText,
+                    imageUrl: rawImgUrl,
+                    controlUrl: upgradeCoverUrl
+                });
+                fileNames.push({
+                    name: title.innerText,
+                    originalUrl: rawImgUrl,
+                    fetchUrl: rawImgUrl,
+                    mediaType: 'image',
+                    viaProxy: false
+                });
+            } else {
+                const img = document.createElement('img');
+                img.alt = title.innerText;
+                img.referrerPolicy = 'no-referrer';
+                attachMediaRetry(img, rawImgUrl, '图片');
+                img.src = rawImgUrl;
+                wrapper.appendChild(img);
+
+                fileUrls.push(rawImgUrl);
+                fileNames.push({
+                    name: title.innerText,
+                    originalUrl: rawImgUrl,
+                    fetchUrl: rawImgUrl,
+                    mediaType: 'image',
+                    viaProxy: false
+                });
+            }
+            if (upgradeCoverUrl) {
+                laserControlFiles.push({
+                    name: title.innerText,
+                    originalUrl: upgradeCoverUrl,
+                    fetchUrl: upgradeCoverUrl,
+                    mediaType: 'laser-control',
+                    viaProxy: false
+                });
+            }
+
+            wrapper.appendChild(title);
+            grid.appendChild(wrapper);
+        });
+        }
 		function buildLaserGalleryHtml(items) {
 		    const galleryData = JSON.stringify(items).replace(/</g, '\\u003c');
 		    return [
