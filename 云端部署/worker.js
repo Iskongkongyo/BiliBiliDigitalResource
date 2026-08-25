@@ -583,6 +583,24 @@ export default {
 			}
 		}
 
+		if (url.pathname === '/api/suit') {
+			const itemId = url.searchParams.get('item_id');
+			if (!itemId) {
+				return jsonResponse({ error: 'Missing item_id.' }, { status: 400 });
+			}
+
+			try {
+				const target = `https://api.bilibili.com/x/garb/v2/mall/suit/detail?item_id=${encodeURIComponent(itemId)}&part=suit`;
+				const data = await fetchBilibiliJson(target, 'suit API');
+				return jsonResponse(data);
+			} catch (err) {
+				return jsonResponse(
+					{ error: err.message },
+					{ status: err.statusCode || 500 }
+				);
+			}
+		}
+
 		if (url.pathname === '/api/detail') {
 			let actId = url.searchParams.get('act_id');
 			let lotteryId = url.searchParams.get('lottery_id');
@@ -696,8 +714,9 @@ const htmlContent = `
 <html lang="zh-CN">
 <head>
 	<meta charset="utf-8" />
+        <meta name="referrer" content="no-referrer" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>B站数字周边提取工具</title>
+	<title>B站装扮与数字周边提取工具</title>
 	<style>
 		:root {
 		    --primary: #10b981;
@@ -755,29 +774,60 @@ const htmlContent = `
 		@media (max-width: 640px) {
 			#result-title { align-items: flex-start; flex-direction: column; gap: 12px; }
 			.result-title-area { align-items: flex-start; margin-left: 0; }
+			.category-section { flex-direction:column; }
+			.category-title { flex:none; justify-content:flex-start; padding:0 0 8px; border-right:0; border-bottom:2px solid var(--primary); text-align:left; }
+			.category-media-grid { grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); }
 		}
 		#lottery-selection-panel { display:none; margin-bottom:24px; border:1px solid var(--primary); border-radius:var(--border-radius); padding:20px; background:linear-gradient(135deg, #f0fdf4, #ecfdf5); }
 		#lottery-buttons { display:flex; gap:12px; flex-wrap:wrap; margin-top:14px; }
 		#lottery-buttons button { background:linear-gradient(135deg, #10b981, #059669); padding:12px 22px; border-radius:10px; font-size:14px; min-width:120px; }
 		#lottery-buttons button:hover { background:linear-gradient(135deg, #059669, #047857); }
 		#lottery-buttons button.recommended { box-shadow: 0 0 0 2px #fbbf24, 0 4px 16px rgba(251,191,36,0.35); position:relative; }
+		.header-actions { display:flex; align-items:center; gap:12px; }
+		.api-select { min-height:36px; padding:0 15px 0 12px; border:2px solid var(--border-color); border-radius:999px; color:var(--text-main); background:#fff; font:inherit; font-size:13px; font-weight:bold; cursor:pointer; }
+		.mode-switch { display:inline-flex; padding:3px; border:1px solid var(--border-color); border-radius:999px; background:#f1f5f9; box-shadow:inset 0 1px 2px rgba(15,23,42,.06); }
+		.mode-switch button { padding:6px 13px; border-radius:999px; color:var(--text-muted); background:transparent; box-shadow:none; font-size:13px; }
+		.mode-switch button:hover { color:var(--text-main); background:#e2e8f0; transform:none; }
+		.mode-switch button.active { color:#fff; background:var(--primary); box-shadow:0 3px 9px var(--primary-glow); }
+		.result-content[hidden] { display:none !important; }
+		#suit-resources-grid { display:flex; flex-direction:column; gap:18px; margin-top:20px; }
+		.category-section { display:flex; align-items:stretch; gap:16px; padding:16px; border:1px solid var(--border-color); border-radius:var(--border-radius); background:#fff; }
+		.category-title { flex:0 0 128px; display:flex; align-items:center; justify-content:center; align-content:center; flex-wrap:wrap; gap:8px; padding-right:14px; border-right:2px solid var(--primary); color:var(--primary); font-size:1.05em; font-weight:bold; text-align:center; }
+		.count-badge { padding:2px 8px; border-radius:10px; color:#fff; background:var(--primary); font-size:12px; }
+		.category-media-grid { flex:1; min-width:0; display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:16px; }
+		.suit-media-card img, .suit-media-card video { width:100%; height:280px; padding:8px; box-sizing:border-box; object-fit:contain; background:#f3f4f6; }
+		.suit-media-card video { padding:0; }
+		.suit-media-card .media-retry { height:280px; }
 	</style>
 </head>
 <body>
 	<div class="container">
 		<div class="panel">
-			<h1> B站数字周边提取工具 <a href="https://github.com/Iskongkongyo" target="_blank" class="github-icon" title="访问我的 GitHub 主页">
+			<h1>
+				<span>B站装扮与数字周边提取工具</span>
+				<span class="header-actions">
+					<select id="api-provider" class="api-select" aria-label="请求接口">
+						<option value="corsbridge" selected>CorsBridge接口</option>
+						<option value="cloudflare">Cloudflare接口</option>
+					</select>
+					<span class="mode-switch" aria-label="提取模式">
+						<button type="button" class="active" data-mode="auto" onclick="switchMode('auto')">自动</button>
+						<button type="button" data-mode="manual" onclick="switchMode('manual')">手动</button>
+					</span>
+					<a href="https://github.com/Iskongkongyo" target="_blank" rel="noopener noreferrer" class="github-icon" title="访问我的 GitHub 主页">
 					<svg height="28" width="28" viewBox="0 0 16 16" fill="currentColor">
 						<path
 							d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z">
 						</path>
 					</svg>
-				</a>
+					</a>
+				</span>
 			</h1>
+			<p id="mode-description" style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">自动模式会通过所选接口请求并直接渲染；手动模式只打开 B 站对应接口，由你复制 JSON 后渲染。</p>
 			<div class="step-container">
-				<div class="step-title"><span class="step-badge">1</span> 获取链接</div>
-				<p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;"> 用B站移动端APP打开 <a href="bilibili://forward?-Btarget=https%3A%2F%2Fwww.bilibili.com%2Fh5%2Fmall%2Fhome%3Fnavhide%3D1">个性装扮(点我即达)</a>， 进入想要下载的数字周边，点击右上角分享获取分享链接和文本。 </p>
-				<textarea id="filepath" rows="4" placeholder="在此处粘贴分享URL或文本，例如：https://www.bilibili.com/h5/mall/... 或 2026DLCSHARE$xxxxxx$ ..."></textarea>
+				<div class="step-title"><span class="step-badge">1</span> 粘贴商品链接</div>
+				<p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">支持数字周边活动分享链接、分享文本与 <code>suit/detail</code> 装扮商品链接；系统会自动识别资源类型。</p>
+				<textarea id="source-url" rows="4" placeholder="例如：数字周边活动链接/分享文本，或 https://www.bilibili.com/h5/mall/suit/detail?id=202954701"></textarea>
 				<div style="margin-top: 10px; text-align: right;">
 					<button id="fetch-btn" onclick="getData()">一键智能解析</button>
 				</div>
@@ -787,43 +837,12 @@ const htmlContent = `
 				<p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">该活动包含多个数字周边，请选择要提取的：</p>
 				<div id="lottery-buttons"></div>
 			</div>
-			<div id="manual-fallback-panel" class="step-container" style="display:none; border:1px solid var(--border-color); border-radius:12px; padding:16px; background:#fafafa;">
-				<div class="step-title"><span class="step-badge">2</span> 自动失败，切换手动模式</div>
-				<p id="manual-error-tip" style="color:#b91c1c; font-size:0.92em; margin-top:0;"> 自动获取失败，请按下面步骤手动继续。 </p>
-				<div style="margin-bottom:16px;">
-					<div style="font-weight:bold; margin-bottom:8px; color:var(--text-main);">2.1 获取数字周边基础信息</div>
-					<p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;"> 点击按钮打开 basic 接口，复制页面中的完整 JSON，粘贴到下方。 </p>
-					<textarea id="basic-url" rows="2" readonly placeholder="自动失败后会在这里生成 basic 接口地址..."></textarea>
-					<div style="margin-top: 10px; text-align: right; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
-						<button type="button" onclick="copyBasicUrl()">复制基础接口地址</button>
-						<button type="button" onclick="openBasicUrl()">打开基础接口</button>
-					</div>
-					<br/>
-					<textarea id="basic-data" rows="6" placeholder="把基础接口返回的 JSON 粘贴到这里..."></textarea>
-					<div style="margin-top: 10px; text-align: right;">
-						<button type="button" onclick="openDetailFromBasic()">解析基础数据并打开媒体接口</button>
-					</div>
-				</div>
-				<div id="manual-lottery-selection" style="display:none; margin-bottom:16px; padding:14px; border:1px solid var(--primary); border-radius:10px; background:linear-gradient(135deg, #f0fdf4, #ecfdf5);">
-					<div style="font-weight:bold; margin-bottom:8px; color:var(--primary);">⚡ 检测到多个数字周边，请选择要查看的数字周边：</div>
-					<div id="manual-lottery-buttons" style="display:flex; gap:10px; flex-wrap:wrap;"></div>
-				</div>
-				<div>
-					<div style="font-weight:bold; margin-bottom:8px; color:var(--text-main);">2.2 获取媒体数据</div>
-					<p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;"> 打开 detail 接口后，复制页面中的完整 JSON，粘贴到下方并渲染。 </p>
-					<textarea id="detail-url" rows="3" readonly placeholder="解析基础数据后，这里会生成 detail 接口地址..."></textarea>
-					<div style="margin-top: 10px; text-align: right; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
-						<button type="button" onclick="copyDetailUrl()">复制媒体接口地址</button>
-						<button type="button" onclick="openDetailUrl()">打开媒体接口</button>
-					</div>
-				</div>
-			</div>
 			<div class="step-container">
-				<div class="step-title"><span class="step-badge">3</span> 获取媒体数据 / 手动粘贴结果</div>
-				<p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;"> 正常情况下系统会自动完成；如果自动失败，请把手动获取到的 detail JSON 粘贴到这里。 </p>
-				<textarea id="data" rows="6" placeholder="自动成功会自动填入；手动模式下请把 detail JSON 粘贴到这里..."></textarea>
+				<div class="step-title"><span class="step-badge">2</span> 接口数据</div>
+				<p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">自动模式会填充并渲染；手动模式请将接口页完整 JSON 粘贴到这里，系统会自动识别资源类型。</p>
+				<textarea id="data" rows="6" placeholder="正常情况下无需手动粘贴..."></textarea>
 				<div style="margin-top: 10px; text-align: right;">
-					<button onclick="getVideos()">渲染视频与图片</button>
+					<button onclick="renderPastedData()">识别并渲染资源</button>
 				</div>
 			</div>
 		</div>
@@ -831,17 +850,18 @@ const htmlContent = `
 			<h2 id="result-title">
 				<span class="result-title-area">
 					<span id="result-name">提取结果</span>
-					<span class="result-hints">
+					<span id="result-hints" class="result-hints">
 						<span>快捷键 S：鼠标位于某个数字周边上时，可单独下载该图片、视频或当前镭射效果。</span>
 						<span>镭射预览仅供参考，实际效果可能与 B 站存在差异。</span>
 					</span>
 				</span>
-				<button id="download-btn" onclick="downloadFilesAsZip()">打包下载全部</button>
+				<button id="download-btn" onclick="downloadCurrentResult()">打包下载全部</button>
 			</h2>
 			<div id="progress-container" class="progress-wrapper"><progress id="download-progress" max="100" value="0"></progress>
 				<div id="progressText">准备下载...</div>
 			</div>
-			<div id="videos-grid"></div>
+			<div id="videos-grid" class="result-content"></div>
+			<div id="suit-resources-grid" class="result-content" hidden></div>
 		</div>
 	</div>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
@@ -869,6 +889,30 @@ const htmlContent = `
 		let laserMotionEnabled = false;
 		let laserMotionListening = false;
 		let laserMotionBaseline = null;
+		let activeMode = 'auto';
+		let activeResult = null;
+		let suitResources = [];
+		let suitZipName = '装扮资源';
+
+		function switchMode(mode) {
+			if (!['auto', 'manual'].includes(mode) || mode === activeMode) return;
+			if (isDownloading) { alert('当前有正在进行的下载任务，请完成后再切换模式。'); return; }
+			activeMode = mode;
+			const automatic = mode === 'auto';
+			document.getElementById('mode-description').innerText = automatic
+				? '自动模式会通过所选接口请求并直接渲染；手动模式只打开 B 站对应接口，由你复制 JSON 后渲染。'
+				: '手动模式不会请求代理。点击按钮后会直接打开对应 B 站接口，请复制完整 JSON 再粘贴到下方渲染。';
+			document.getElementById('fetch-btn').innerText = automatic ? '一键智能解析' : '打开对应接口';
+			document.querySelectorAll('[data-mode]').forEach(button => button.classList.toggle('active', button.dataset.mode === mode));
+		}
+
+		function getSelectedApiProvider() {
+			return document.getElementById('api-provider').value;
+		}
+
+		function downloadCurrentResult() {
+			return activeResult === 'suit' ? downloadSuitFilesAsZip() : downloadFilesAsZip();
+		}
 
 		function getScreenOrientationAngle() {
 		    const angle = screen.orientation?.angle ?? window.orientation ?? 0;
@@ -951,6 +995,10 @@ const htmlContent = `
 		    button.addEventListener('click', enableLaserMotion);
 		}
 		function attachMediaRetry(media, url, mediaLabel) {
+                    // B站部分图片和视频会检查 Referer，预览时统一禁止发送。
+	            media.referrerPolicy = 'no-referrer';
+	            media.setAttribute('referrerpolicy', 'no-referrer');
+
 		    let retryPlaceholder = null;
 		    const showRetry = () => {
 		        if (retryPlaceholder) return;
@@ -1088,6 +1136,38 @@ const htmlContent = `
 		            await new Promise(resolve => setTimeout(resolve, 1000));
 		        }
 		    }
+		}
+
+		async function fetchJsonByProvider(targetUrl, workerUrl) {
+			const requestUrl = getSelectedApiProvider() === 'cloudflare'
+				? workerUrl
+				: 'https://api.cors.syrins.tech/?url=' + encodeURIComponent(targetUrl);
+			const response = await fetchWithRetry(requestUrl, {}, 3, 15000);
+			try {
+				return await response.json();
+			} catch (error) {
+				throw new Error('请求接口返回的不是有效 JSON：' + error.message);
+			}
+		}
+
+		function getSourceInput() {
+			return document.getElementById('source-url').value.trim();
+		}
+
+		function detectResourceTypeFromUrl(sourceUrl) {
+			const rawUrl = String(sourceUrl || '');
+			let normalized = rawUrl;
+			try { normalized = decodeURIComponent(rawUrl); } catch (error) { console.warn('链接解码失败，将按原链接识别：', error); }
+			normalized = normalized.toLowerCase();
+			if (normalized.includes('/suit/detail') || normalized.includes('/garb/v2/mall/suit/detail')) return 'suit';
+			if (getParam(rawUrl, 'act_id') || getParam(rawUrl, 'lottery_id') || normalized.includes('/vas/dlc_act/') || (getParam(rawUrl, 'id') && normalized.includes('/h5/mall/'))) return 'digital';
+			throw new Error('未识别出链接类型。请粘贴数字周边活动分享链接/文本，或包含 suit/detail 的装扮商品链接。');
+		}
+
+		function buildSuitApiUrl(sourceUrl) {
+			const itemId = getParam(sourceUrl, 'id') || getParam(sourceUrl, 'item_id');
+			if (!itemId) throw new Error('装扮链接中未找到 id 或 item_id 参数！');
+			return 'https://api.bilibili.com/x/garb/v2/mall/suit/detail?item_id=' + encodeURIComponent(itemId) + '&part=suit';
 		}
 		
 		function normalizeFilepath(filepath, lotteryId) {
@@ -1275,135 +1355,90 @@ const htmlContent = `
 		        btn.disabled = false;
 		    }
 		}
-		async function fetchAndRenderDetail(filepath, lotteryId) {
-		    const finalPath = normalizeFilepath(filepath, lotteryId);
-		    const detailRes = await fetch('/api/detail', {
-		        method: 'POST',
-		        headers: { 'Content-Type': 'application/json' },
-		        body: JSON.stringify({ input: finalPath })
-		    });
-		    const detailText = await detailRes.text();
-		    let detailData;
-		    try {
-		        detailData = JSON.parse(detailText);
-		    } catch (e) {
-		        throw new Error('detail 接口返回非 JSON：HTTP'+ detailRes.status + '，响应前300字：'+ detailText.slice(0, 300));
-		    }
-		    if (!detailRes.ok) {
-		        throw new Error(detailData?.error || '详情接口请求失败!');
-		    }
-		    document.getElementById('data').value = JSON.stringify(detailData, null, 2);
-		    getVideos();
+		function buildDigitalDetailApiUrl(actId, lotteryId) {
+			return 'https://api.bilibili.com/x/vas/dlc_act/lottery_home_detail?act_id=' + encodeURIComponent(actId) + '&appkey=1d8b6e7d45233436&disable_rcmd=0&sign=341070dd7b86b7ce7c3655972d9824a7&lottery_id=' + encodeURIComponent(lotteryId) + '&ts=' + Math.floor(Date.now() / 1000) + '&mobi_app=android&platform=android';
+		}
+		function openManualApi(resourceType) {
+			const source = getSourceInput();
+			if (resourceType === 'suit') { window.open(buildSuitApiUrl(source), '_blank', 'noopener,noreferrer'); return; }
+			const actId = getParam(source, 'act_id') || getParam(source, 'id');
+			const lotteryId = getParam(source, 'lottery_id');
+			if (!actId) throw new Error('数字周边链接中未找到 act_id 或 id！');
+			const apiUrl = lotteryId && lotteryId !== 'undefined' && lotteryId !== 'null'
+				? buildDigitalDetailApiUrl(actId, lotteryId)
+				: 'https://api.bilibili.com/x/vas/dlc_act/act/basic?act_id=' + encodeURIComponent(actId) + '&csrf=';
+			alert(lotteryId ? '即将打开数字周边详情接口，请复制完整 JSON 后渲染。' : '链接中没有 lottery_id，已打开基础接口；请从返回数据确认目标 lottery_id 后，再使用带 lottery_id 的分享链接获取详情。');
+			window.open(apiUrl, '_blank', 'noopener,noreferrer');
 		}
 		function showLotterySelection(actId, lotteryList, tabLotteryId) {
-		    const panel = document.getElementById('lottery-selection-panel');
-		    const container = document.getElementById('lottery-buttons');
-		    container.innerHTML = '';
-		    lotteryList.forEach(function(lottery) {
-		        const b = document.createElement('button');
-		        b.innerText = lottery.lottery_name || ('周边 ' + lottery.lottery_id);
-		        if (String(lottery.lottery_id) === String(tabLotteryId)) {
-		            b.classList.add('recommended');
-		            b.innerText += ' ★';
-		        }
-		        b.onclick = function() { selectLottery(actId, lottery.lottery_id); };
-		        container.appendChild(b);
-		    });
-		    panel.style.display = 'block';
-		    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+			const panel = document.getElementById('lottery-selection-panel');
+			const container = document.getElementById('lottery-buttons');
+			container.replaceChildren();
+			lotteryList.forEach(function(lottery) {
+				const button = document.createElement('button');
+				button.innerText = lottery.lottery_name || ('周边 ' + lottery.lottery_id);
+				if (String(lottery.lottery_id) === String(tabLotteryId)) { button.classList.add('recommended'); button.innerText += ' ★'; }
+				button.onclick = function() { selectLottery(actId, lottery.lottery_id); };
+				container.appendChild(button);
+			});
+			panel.style.display = 'block';
+			panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		}
+		async function fetchAndRenderDetail(actId, lotteryId) {
+			const targetUrl = buildDigitalDetailApiUrl(actId, lotteryId);
+			const workerUrl = '/api/detail?act_id=' + encodeURIComponent(actId) + '&lottery_id=' + encodeURIComponent(lotteryId);
+			const detailData = await fetchJsonByProvider(targetUrl, workerUrl);
+			if (detailData.code != null && detailData.code !== 0) throw new Error(detailData.message || ('API 返回错误：' + detailData.code));
+			document.getElementById('data').value = JSON.stringify(detailData, null, 2);
+			getVideos();
 		}
 		async function selectLottery(actId, lotteryId) {
-		    const btn = document.getElementById('fetch-btn');
-		    const originalBtnText = btn.innerText;
-		    btn.innerText = '正在获取数据...';
-		    btn.disabled = true;
-		    document.getElementById('lottery-selection-panel').style.display = 'none';
-		    try {
-		        const filepath = document.getElementById('filepath').value.trim();
-		        await fetchAndRenderDetail(filepath, lotteryId);
-		    } catch (err) {
-		        const msg = err?.message || '未知错误';
-		        showManualFallback(msg, document.getElementById('filepath').value.trim());
-		        alert('获取失败：' + msg);
-		    } finally {
-		        btn.innerText = originalBtnText;
-		        btn.disabled = false;
-		    }
+			const button = document.getElementById('fetch-btn');
+			button.disabled = true; button.innerText = '正在获取数据...';
+			document.getElementById('lottery-selection-panel').style.display = 'none';
+			try { await fetchAndRenderDetail(actId, lotteryId); }
+			catch (error) { alert('自动获取失败：' + error.message + '。请切换手动模式后重试。'); }
+			finally { button.disabled = false; button.innerText = activeMode === 'auto' ? '一键智能解析' : '打开对应接口'; }
+		}
+		async function getDigitalDataAutomatically(source) {
+			const actId = getParam(source, 'act_id') || getParam(source, 'id');
+			if (!actId) throw new Error('数字周边链接中未找到 act_id 或 id！');
+			let lotteryId = getParam(source, 'lottery_id');
+			if (!lotteryId || lotteryId === 'undefined' || lotteryId === 'null') {
+				const targetUrl = 'https://api.bilibili.com/x/vas/dlc_act/act/basic?act_id=' + encodeURIComponent(actId) + '&csrf=';
+				const basicData = await fetchJsonByProvider(targetUrl, '/api/basic?act_id=' + encodeURIComponent(actId));
+				if (basicData.code != null && basicData.code !== 0) throw new Error(basicData.message || ('API 返回错误：' + basicData.code));
+				const lotteryList = basicData?.data?.lottery_list || [];
+				const tabLotteryId = basicData?.data?.tab_lottery_id;
+				if (lotteryList.length >= 2) { showLotterySelection(actId, lotteryList, tabLotteryId); return; }
+				lotteryId = tabLotteryId || lotteryList[0]?.lottery_id;
+				if (!lotteryId) throw new Error('未找到有效的 lottery_id！');
+			}
+			await fetchAndRenderDetail(actId, lotteryId);
+		}
+		async function getSuitDataAutomatically(source) {
+			const targetUrl = buildSuitApiUrl(source);
+			const itemId = getParam(source, 'id') || getParam(source, 'item_id');
+			const data = await fetchJsonByProvider(targetUrl, '/api/suit?item_id=' + encodeURIComponent(itemId));
+			if (data.code != null && data.code !== 0) throw new Error(data.message || ('API 返回错误：' + data.code));
+			document.getElementById('data').value = JSON.stringify(data, null, 2);
+			parseSuitData();
 		}
 		async function getData() {
-		    const filepath = document.getElementById('filepath').value.trim();
-		    if (!filepath) {
-		alert('输入内容不能为空！');
-		return;
-		    }
-		
-		    const btn = document.getElementById('fetch-btn');
-		    const originalBtnText = btn.innerText;
-		    const manualPanel = document.getElementById('manual-fallback-panel');
-		    const lotteryPanel = document.getElementById('lottery-selection-panel');
-		    const basicDataBox = document.getElementById('basic-data');
-		    const detailUrlBox = document.getElementById('detail-url');
-		
-		    btn.innerText = '正在自动解析...';
-		    btn.disabled = true;
-		
-		    // 每次重新尝试自动解析前，先清空上次状态
-		    manualPanel.style.display = 'none';
-		    lotteryPanel.style.display = 'none';
-		    basicDataBox.value = '';
-		    detailUrlBox.value = '';
-		
-		    try {
-		const id = getParam(filepath, 'act_id') || getParam(filepath, 'id');
-		let lotteryId = getParam(filepath, 'lottery_id');
-		
-		if ((!lotteryId || lotteryId === 'undefined' || lotteryId === 'null') && filepath.startsWith('http')) {
-		    if (!id || id === 'undefined' || id === 'null') {
-		        throw new Error('未找到有效的 id!');
-		    }
-		
-		    const basicRes = await fetch('/api/basic?act_id=' + encodeURIComponent(id));
-		    const basicText = await basicRes.text();
-		
-		    let basicData;
-		    try {
-		        basicData = JSON.parse(basicText);
-		    } catch (e) {
-		        throw new Error('basic 接口返回非 JSON：HTTP'+ basicRes.status + '，响应前300字：'+ basicText.slice(0, 300));
-		    }
-		
-		    if (!basicRes.ok) {
-		        throw new Error(basicData?.error || '基础接口请求失败!');
-		    }
-		
-		    const lotteryList = basicData?.data?.lottery_list || [];
-		    const tabLotteryId = basicData?.data?.tab_lottery_id;
-		
-		    // 多个数字周边 → 展示选择按钮，等待用户点击
-		    if (lotteryList.length >= 2) {
-		        showLotterySelection(id, lotteryList, tabLotteryId);
-		        btn.innerText = originalBtnText;
-		        btn.disabled = false;
-		        return;
-		    }
-		
-		    // 单个周边 → 直接继续
-		    lotteryId = tabLotteryId || lotteryList[0]?.lottery_id;
-		    if (!lotteryId) {
-		        throw new Error('未找到有效的 lottery_id!');
-		    }
-		}
-		
-		await fetchAndRenderDetail(filepath, lotteryId);
-		
-		    } catch (err) {
-		const msg = err?.message || '未知错误';
-		showManualFallback(msg, filepath);
-		alert('自动获取失败：'+ msg + '已自动切换到手动模式，请继续页面中的第 2 步。');
-		    } finally {
-		btn.innerText = originalBtnText;
-		btn.disabled = false;
-		    }
+			const source = getSourceInput();
+			if (!source) { alert('商品链接不能为空！'); return; }
+			const button = document.getElementById('fetch-btn');
+			try {
+				const resourceType = detectResourceTypeFromUrl(source);
+				document.getElementById('lottery-selection-panel').style.display = 'none';
+				if (activeMode === 'manual') { openManualApi(resourceType); return; }
+				button.disabled = true; button.innerText = '正在自动解析...';
+				if (resourceType === 'suit') await getSuitDataAutomatically(source); else await getDigitalDataAutomatically(source);
+			} catch (error) {
+				alert('自动获取失败：' + error.message + '。可切换手动模式直接打开接口。');
+			} finally {
+				button.disabled = false; button.innerText = activeMode === 'auto' ? '一键智能解析' : '打开对应接口';
+			}
 		}
 		function getVideos() {
 		    try {
@@ -1412,8 +1447,12 @@ const htmlContent = `
 		        const jsonData = JSON.parse(data);
 		        const infos = jsonData?.data || {};
 		        zipName = infos.name || '数字周边';
+		        activeResult = 'digital';
+		        document.getElementById('videos-grid').hidden = false;
+		        document.getElementById('suit-resources-grid').hidden = true;
 		        document.getElementById('result-panel').style.display = 'block';
 		        document.getElementById('result-name').innerText = zipName;
+		        document.getElementById('result-hints').innerHTML = '<span>快捷键 S：鼠标位于某个数字周边上时，可单独下载该图片、视频或当前镭射效果。</span><span>镭射预览仅供参考，实际效果可能与 B 站存在差异。</span>';
 		        const itemList = Array.isArray(infos.item_list) ? [...infos.item_list] : [];
 		        const seen = new Set();
 		        function addImageItem(cardName, cardImg) {
@@ -1466,6 +1505,41 @@ const htmlContent = `
 		        alert(\`解析数据出错，请确保输入的是完整的 JSON 格式：\${err.message}\`);
 		    }
 		}
+		function extractSuitResources(data) {
+			const resources = [], seen = new Set();
+			const add = (category, name, url, subDir) => { if (url && !seen.has(url)) { seen.add(url); resources.push({ category, name, url, subDir: subDir || category }); } };
+			const addProperties = (category, item, definitions) => { const p = item?.properties || {}; definitions.forEach(def => add(category, def[0], p[def[1]], def[2])); };
+			add('封面', '商品封面', data.properties?.image_cover, '封面'); add('封面', '分享图', data.properties?.fan_share_image, '封面');
+			(data.suit_items?.card || []).forEach(item => { const p=item.properties||{}, name=item.name||'评论卡片'; add('评论卡片',name,p.image,'评论卡片'); add('评论卡片',name+'_缩略图',p.image_preview_small,'评论卡片'); if(p.fans_image!==p.image)add('评论卡片',name+'_粉丝徽章',p.fans_image,'评论卡片'); });
+			(data.suit_items?.card_bg || []).forEach(item => { const p=item.properties||{}, name=item.name||'卡片背景'; add('卡片背景',name,p.image,'卡片背景'); add('卡片背景',name+'_缩略图',p.image_preview_small,'卡片背景'); });
+			(data.suit_items?.emoji_package || []).forEach(pkg => { const p=pkg.properties||{}; add('表情包','表情包封面',p.image,'表情包'); try { JSON.parse(p.item_emoji_list||'[]').forEach(emoji=>add('表情包',emoji.name||'表情',emoji.image,'表情包')); } catch(error) { console.warn('表情包列表解析失败：',error); } (pkg.items||[]).forEach(emoji=>add('表情包',emoji.name?.replace(/[\[\]]/g,'')||'表情',emoji.properties?.image,'表情包')); });
+			(data.suit_items?.skin || []).forEach(item => addProperties('主题皮肤',item,[['皮肤预览图','image_cover'],['顶栏背景','head_bg'],['标签栏背景','head_tab_bg'],['个人页方形背景','head_myself_squared_bg'],['底栏背景','tail_bg'],['个人页动态背景','head_myself_mp4_bg'],['首页图标','tail_icon_main','主题皮肤/底栏图标'],['首页图标_选中','tail_icon_selected_main','主题皮肤/底栏图标'],['动态图标','tail_icon_dynamic','主题皮肤/底栏图标'],['动态图标_选中','tail_icon_selected_dynamic','主题皮肤/底栏图标'],['频道图标','tail_icon_channel','主题皮肤/底栏图标'],['频道图标_选中','tail_icon_selected_channel','主题皮肤/底栏图标'],['我的图标','tail_icon_myself','主题皮肤/底栏图标'],['我的图标_选中','tail_icon_selected_myself','主题皮肤/底栏图标'],['商城图标','tail_icon_shop','主题皮肤/底栏图标'],['商城图标_选中','tail_icon_selected_shop','主题皮肤/底栏图标'],['发布按钮','tail_icon_pub_btn_bg','主题皮肤/底栏图标'],['发布按钮_选中','tail_icon_selected_pub_btn_bg','主题皮肤/底栏图标']]));
+			(data.suit_items?.space_bg || []).forEach(item => addProperties('空间背景',item,[['竖版壁纸1','image1_portrait'],['横版壁纸1','image1_landscape'],['竖版壁纸2','image2_portrait'],['横版壁纸2','image2_landscape'],['竖版动态壁纸1','space_1_mp4_vertical'],['横版动态壁纸1','space_1_mp4_horizontal'],['竖版动态壁纸2','space_2_mp4_vertical'],['横版动态壁纸2','space_2_mp4_horizontal']]));
+			(data.suit_items?.pendant || []).forEach(item => { const p=item.properties||{},name=item.name||'头像挂件'; add('头像挂件',name,p.image,'头像挂件'); add('头像挂件',name+'_缩略图',p.image_preview_small,'头像挂件'); });
+			(data.suit_items?.loading || []).forEach(item => { const p=item.properties||{},name=item.name||'加载动画'; add('加载动画',name,p.loading_url||p.image,'加载动画'); add('加载动画',name+'_缩略图',p.image_preview_small,'加载动画'); });
+			if(data.fan_user?.avatar) add('UP主信息',(data.fan_user.nickname||'UP主')+'_头像',data.fan_user.avatar,'UP主信息');
+			return resources;
+		}
+		function createSuitResourceCard(resource) {
+			const card=document.createElement('div'); card.className='media-card suit-media-card'; card._downloadInfo={title:resource.name,url:resource.url};
+			const resourcePath = resource.url.split('?')[0].toLowerCase();
+			const isArchive = resourcePath.endsWith('.zip'), isVideo = resourcePath.endsWith('.mp4') || resourcePath.endsWith('.webm');
+			if(isArchive) { const placeholder=document.createElement('div'); placeholder.className='media-retry'; placeholder.append('📦 ZIP 离线资源包'); card.appendChild(placeholder); }
+			else if(isVideo) { const video=document.createElement('video'); video.controls=true; video.preload='metadata'; attachMediaRetry(video,resource.url,'视频'); video.src=resource.url; card.appendChild(video); }
+			else { const image=document.createElement('img'); image.alt=resource.name; image.loading='lazy'; attachMediaRetry(image,resource.url,'图片'); image.src=resource.url; card.appendChild(image); }
+			const title=document.createElement('div'); title.className='title'; title.innerText=resource.name; title.title=resource.name; card.appendChild(title); return card;
+		}
+		function renderSuitResourceGrid(resources) {
+			const grid=document.getElementById('suit-resources-grid'); grid.replaceChildren(); const grouped={}; resources.forEach(item=>{(grouped[item.category] ||= []).push(item);});
+			const order=['封面','主题皮肤','空间背景','评论卡片','卡片背景','表情包','头像挂件','加载动画','UP主信息'], icons={'封面':'🎨','主题皮肤':'🎭','空间背景':'🖼️','评论卡片':'💬','卡片背景':'🃏','表情包':'😊','头像挂件':'💎','加载动画':'⏳','UP主信息':'👤'};
+			[...order.filter(category=>grouped[category]),...Object.keys(grouped).filter(category=>!order.includes(category))].forEach(category=>{ const section=document.createElement('section'); section.className='category-section'; const heading=document.createElement('div'); heading.className='category-title'; heading.append((icons[category]||'📦')+' '+category+' '); const count=document.createElement('span'); count.className='count-badge'; count.innerText=grouped[category].length; heading.appendChild(count); const cards=document.createElement('div'); cards.className='category-media-grid'; grouped[category].forEach(resource=>cards.appendChild(createSuitResourceCard(resource))); section.append(heading,cards); grid.appendChild(section); });
+		}
+		function parseSuitData() {
+			try { const raw=document.getElementById('data').value.trim(); if(!raw) throw new Error('JSON 数据不能为空！'); const json=JSON.parse(raw); if(json.code!=null&&json.code!==0)throw new Error(json.message||('API 返回错误：'+json.code)); const data=json.data||json; if(!data?.suit_items&&!data?.properties)throw new Error('未找到有效的装扮数据！'); suitZipName=data.name||'装扮资源'; suitResources=extractSuitResources(data); if(!suitResources.length)throw new Error('未能提取到任何资源！'); activeResult='suit'; document.getElementById('videos-grid').hidden=true; document.getElementById('suit-resources-grid').hidden=false; document.getElementById('result-panel').style.display='block'; document.getElementById('result-name').innerText=suitZipName+'（'+suitResources.length+' 项资源）'; document.getElementById('result-hints').textContent='快捷键 S：鼠标位于资源卡片上时，可单独下载该资源。'; renderSuitResourceGrid(suitResources); document.getElementById('result-panel').scrollIntoView({behavior:'smooth',block:'start'}); } catch(error) { alert('解析失败：'+error.message); }
+		}
+		function renderPastedData() {
+			try { const raw=document.getElementById('data').value.trim(); if(!raw)throw new Error('JSON 数据不能为空！'); const json=JSON.parse(raw), payload=json?.data||json; if(payload?.suit_items||payload?.properties?.image_cover||payload?.properties?.fan_share_image) { parseSuitData(); return; } if(Array.isArray(payload?.item_list)||payload?.collect_list) { getVideos(); return; } throw new Error('JSON 中未识别出装扮资源或数字周边数据。'); } catch(error) { alert('识别失败：'+error.message); }
+		}
 		function parseShineConfig(metaInfo) {
 		    const defaults = {
 		        laser_intensity: 1,
@@ -1483,17 +1557,22 @@ const htmlContent = `
 		        return defaults;
 		    }
 		}
-		function loadCorsImage(url) {
-		    const load = source => new Promise((resolve, reject) => {
-		        const image = new Image();
-		        image.crossOrigin = 'anonymous';
-		        image.referrerPolicy = 'no-referrer';
-		        image.onload = () => resolve(image);
-		        image.onerror = () => reject(new Error('图片加载失败：' + source));
-		        image.src = source;
-		    });
-		    return load(url); // 直连加载；请求 UA 由「Bili 典藏卡 UA 改写」浏览器扩展改写，不再回退 CF /proxy
-		}
+	      function loadCorsImage(url) {
+	           const load = source => new Promise((resolve, reject) => {
+		   const image = new Image();
+
+		   // 用于镭射卡面的图片请求：禁用 Referer。
+		   image.crossOrigin = 'anonymous';
+		   image.referrerPolicy = 'no-referrer';
+		   image.setAttribute('referrerpolicy', 'no-referrer');
+
+		   image.onload = () => resolve(image);
+		   image.onerror = () => reject(new Error('图片加载失败：' + source));
+		   image.src = source;
+	         });
+
+	           return load(url);
+                      }
 		function positiveModulo(value, divisor) {
 		    return ((value % divisor) + divisor) % divisor;
 		}
@@ -1964,6 +2043,17 @@ const htmlContent = `
 		        '</html>'
 		    ].join('\\n');
 		}
+		async function downloadSuitFilesAsZip() {
+			if (!suitResources.length) { alert('没有可下载的装扮资源！'); return; }
+			if (isDownloading) { alert('当前有正在进行的下载任务，请等待其完成后再试！'); return; }
+			const resources=suitResources.map(resource=>Object.assign({},resource)), zipNameSafe=sanitizeFileName(suitZipName,'装扮资源'), progressContainer=document.getElementById('progress-container'), progressBar=document.getElementById('download-progress'), progressText=document.getElementById('progressText'), downloadButton=document.getElementById('download-btn'), zip=new JSZip(), names=new Map();
+			let nextIndex=0, completed=0;
+			const uniqueName=(directory,name)=>{ const key=directory+'/'+name,count=names.get(key)||0; names.set(key,count+1); return count ? name+'_'+count : name; };
+			const updateProgress=()=>{ const percent=Math.floor((completed/resources.length)*80); progressBar.value=percent; progressText.innerText='正在下载 ['+zipNameSafe+']... '+percent+'% ('+completed+'/'+resources.length+')'; };
+			const worker=async()=>{ while(nextIndex<resources.length) { const resource=resources[nextIndex++], directory=resource.subDir||resource.category||'未分类', baseName=sanitizeFileName(resource.name,'未命名素材'); try { const response=await fetchWithRetry(resource.url,{referrerPolicy:'no-referrer'},3,30000),blob=await response.blob(),extension=inferExtFromUrlOrBlob(resource.url,blob),fileName=uniqueName(directory,baseName)+extension; zip.file(directory+'/'+fileName,blob); } catch(error) { zip.file(directory+'/'+uniqueName(directory,baseName)+'_下载失败.txt','下载失败文件：'+baseName+'\\n原链接：'+resource.url+'\\n错误信息：'+error.message); } finally { completed++; updateProgress(); } } };
+			isDownloading=true; progressContainer.style.display='block'; progressBar.value=0; downloadButton.disabled=true;
+			try { await Promise.all(Array.from({length:Math.min(2,resources.length)},worker)); progressText.innerText='资源下载完成，正在压缩中，请稍候...'; const content=await zip.generateAsync({type:'blob'},metadata=>{const percent=Math.min(100,80+Math.floor((metadata.percent||0)*0.2));progressBar.value=percent;progressText.innerText='正在压缩 ['+zipNameSafe+']... '+percent+'%';}); saveAs(content,zipNameSafe+'.zip'); progressBar.value=100;progressText.innerText='压缩完毕！文件已保存。'; } catch(error) { alert('打包下载失败：'+error.message); } finally { setTimeout(()=>{progressContainer.style.display='none';progressBar.value=0;isDownloading=false;downloadButton.disabled=false;},1500); }
+		}
 		async function downloadFilesAsZip() {
 		    if (fileUrls.length === 0) { alert('没有找到可以下载的资源文件！'); return; }
 		    if (isDownloading) { alert('当前有正在进行的下载任务，请等待其完成后再试！'); return; }
@@ -1972,7 +2062,7 @@ const htmlContent = `
 		    const targetLaserControls = laserControlFiles.map(item => ({ ...item }));
 		    const targetLaserPairs = laserAssetPairs.map(item => ({ ...item }));
 		    const targetZipName = sanitizeFileName(zipName, '数字周边');
-		    const sourceLink = document.getElementById('filepath').value.trim();
+		    const sourceLink = document.getElementById('source-url').value.trim();
 		    const createUniqueFileNames = (items, fallbackPrefix) => {
 		        const nameOccurrenceMap = {};
 		        return items.map((item, index) => {
