@@ -718,6 +718,9 @@ const htmlContent = `
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>B站装扮与数字周边提取工具</title>
 	<style>
+		*, *::before, *::after {
+			box-sizing: border-box;
+		}
 		:root {
 		    --primary: #10b981;
 		    --primary-glow: rgba(16, 185, 129, 0.3);
@@ -747,6 +750,32 @@ const htmlContent = `
 		.media-card { background: #ffffff; border-radius: var(--border-radius); overflow: hidden; display: flex; flex-direction: column; align-items: center; align-self: start; border: 1px solid var(--border-color); transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s; }
 		.media-card:hover { transform: scale(1.02); border-color: var(--primary); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
 		.media-card video, .media-card img { width: 100%; height: 380px; object-fit: cover; background: #f3f4f6; }
+		.media-card > img, .suit-media-card > img { cursor: zoom-in; }
+		.image-modal { position: fixed; inset: 0; z-index: 9999; display: none; align-items: center; justify-content: center; overflow: hidden; user-select: none; opacity: 0; transition: opacity 0.22s ease; }
+		.image-modal.active { display: flex; opacity: 1; }
+		.image-modal-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.88); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); cursor: zoom-out; }
+		.image-modal-content { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; max-width: 92vw; max-height: 90vh; pointer-events: none; }
+		.image-modal img { max-width: 92vw; max-height: 90vh; object-fit: contain; border-radius: 8px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6); pointer-events: auto; cursor: grab; transform-origin: center center; transition: transform 0.08s ease-out; will-change: transform; }
+		.image-modal img:active, .image-modal.is-dragging img { cursor: grabbing; transition: none; }
+		.image-modal-close { position: absolute; top: 18px; right: 18px; z-index: 2; width: 42px; height: 42px; border-radius: 50%; background: rgba(255, 255, 255, 0.16); border: 1px solid rgba(255, 255, 255, 0.28); color: #fff; font-size: 26px; line-height: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s ease; padding: 0; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35); }
+		.image-modal-close:hover { background: rgba(255, 255, 255, 0.32); transform: scale(1.1); }
+		.image-modal-footer { position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; }
+		.image-modal-laser-hint { padding: 6px 16px; border-radius: 999px; background: rgba(15, 23, 42, 0.82); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.25); color: #f8fafc; font-size: 13px; font-weight: bold; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); white-space: nowrap; letter-spacing: 0.2px; pointer-events: none; }
+		.image-modal-toolbar { display: flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; background: rgba(15, 23, 42, 0.78); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.18); box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4); pointer-events: auto; }
+		.image-modal-btn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.15); color: #fff; font-size: 16px; font-weight: bold; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; transition: all 0.2s ease; box-shadow: none; }
+		.image-modal-btn:hover { background: var(--primary); border-color: var(--primary); transform: scale(1.1); }
+		.image-modal-tip { color: #cbd5e1; font-size: 12px; margin-left: 6px; white-space: nowrap; pointer-events: none; }
+		.image-modal-laser-wrapper { position: relative; display: flex; align-items: center; justify-content: center; max-width: 92vw; max-height: 86vh; aspect-ratio: 2 / 3; pointer-events: auto; border-radius: 12px; overflow: hidden; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.15); background: #0f172a; cursor: crosshair; touch-action: none; user-select: none; }
+		.image-modal-laser-wrapper canvas { display: block; width: 100%; height: 100%; max-width: 92vw; max-height: 86vh; aspect-ratio: 2 / 3; object-fit: contain; }
+		@media (max-width: 640px) {
+			.image-modal-tip { display: none; }
+			.image-modal-footer { bottom: 16px; gap: 8px; width: calc(100% - 32px); max-width: 380px; }
+			.image-modal-laser-hint { font-size: 12px; padding: 5px 12px; text-align: center; white-space: normal; }
+			.image-modal-toolbar { padding: 6px 12px; }
+			.image-modal-close { top: 14px; right: 14px; width: 38px; height: 38px; font-size: 22px; }
+			.image-modal-laser-wrapper { max-width: 92vw; max-height: 80vh; }
+			.image-modal-laser-wrapper canvas { max-width: 92vw; max-height: 80vh; }
+		}
 		.laser-preview { width: 100%; background: #0f172a; }
 		.laser-stage { position: relative; width: 100%; aspect-ratio: 2 / 3; overflow: hidden; background: #0f172a; touch-action: none; cursor: crosshair; }
 		.laser-stage canvas { display: block; width: 100%; height: 100%; }
@@ -755,7 +784,7 @@ const htmlContent = `
 		.laser-status button, .media-retry button { padding: 8px 14px; box-shadow: none; }
 		.media-retry { width: 100%; height: 380px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; box-sizing: border-box; color: var(--text-muted); background: #f3f4f6; text-align: center; }
 		.laser-actions { display: flex; gap: 8px; padding: 9px; background: #f8fafc; border-top: 1px solid var(--border-color); }
-		.laser-actions button { flex: 1; padding: 7px 8px; border-radius: 6px; font-size: 12px; box-shadow: none; }
+		.laser-actions button { flex: 1; padding: 8px 10px; border-radius: 6px; font-size: 13px; font-weight: 500; box-shadow: none; }
 		.laser-actions .secondary { color: var(--text-main); background: #e2e8f0; }
 		.laser-actions .secondary:hover { background: #cbd5e1; }
 		 .media-card video:fullscreen { object-fit: contain; background: #000; }
@@ -771,13 +800,6 @@ const htmlContent = `
 		.result-hints { color: var(--text-muted); font-size: 15px; font-weight: bold; line-height: 1.45; text-align: left; }
 		.result-hints span { display: block; }
 		.result-hints span + span { margin-top: 2px; }
-		@media (max-width: 640px) {
-			#result-title { align-items: flex-start; flex-direction: column; gap: 12px; }
-			.result-title-area { align-items: flex-start; margin-left: 0; }
-			.category-section { flex-direction:column; }
-			.category-title { flex:none; justify-content:flex-start; padding:0 0 8px; border-right:0; border-bottom:2px solid var(--primary); text-align:left; }
-			.category-media-grid { grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); }
-		}
 		#lottery-selection-panel { display:none; margin-bottom:24px; border:1px solid var(--primary); border-radius:var(--border-radius); padding:20px; background:linear-gradient(135deg, #f0fdf4, #ecfdf5); }
 		#lottery-buttons { display:flex; gap:12px; flex-wrap:wrap; margin-top:14px; }
 		#lottery-buttons button { background:linear-gradient(135deg, #10b981, #059669); padding:12px 22px; border-radius:10px; font-size:14px; min-width:120px; }
@@ -798,6 +820,171 @@ const htmlContent = `
 		.suit-media-card img, .suit-media-card video { width:100%; height:280px; padding:8px; box-sizing:border-box; object-fit:contain; background:#f3f4f6; }
 		.suit-media-card video { padding:0; }
 		.suit-media-card .media-retry { height:280px; }
+
+		@media (max-width: 640px) {
+			body {
+				padding: 12px;
+				justify-content: flex-start;
+			}
+
+			.panel {
+				padding: 18px 14px;
+				margin-bottom: 16px;
+				border-radius: 10px;
+			}
+
+			h1 {
+				flex-direction: column;
+				align-items: stretch;
+				gap: 12px;
+				margin-bottom: 14px;
+			}
+
+			#page-title,
+			h1 > span:first-child {
+				font-size: 1.25rem;
+				line-height: 1.35;
+				word-break: break-word;
+			}
+
+			.header-actions {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				flex-wrap: wrap;
+				gap: 8px 10px;
+				width: 100%;
+			}
+
+			.api-select {
+				flex: 1 1 auto;
+				min-width: 125px;
+				max-width: 100%;
+				font-size: 12px;
+				padding: 0 10px;
+			}
+
+			.mode-switch {
+				flex-shrink: 0;
+			}
+
+			.mode-switch button {
+				padding: 5px 11px;
+				font-size: 12px;
+			}
+
+			.github-icon {
+				flex-shrink: 0;
+			}
+
+			.step-title {
+				font-size: 1rem;
+			}
+
+			.step-container > div[style*="text-align: right"] button,
+			#fetch-btn {
+				width: 100%;
+				padding: 11px 16px;
+				font-size: 15px;
+				box-sizing: border-box;
+			}
+
+			#lottery-buttons {
+				gap: 8px;
+			}
+
+			#lottery-buttons button {
+				flex: 1 1 calc(50% - 8px);
+				min-width: 120px;
+				padding: 10px 12px;
+				font-size: 13px;
+			}
+
+			#result-title {
+				align-items: stretch;
+				flex-direction: column;
+				gap: 12px;
+			}
+
+			.result-title-area {
+				align-items: flex-start;
+				margin-left: 0;
+			}
+
+			#result-name {
+				font-size: 1.15rem;
+				line-height: 1.35;
+				word-break: break-word;
+			}
+
+			.result-hints {
+				font-size: 13px;
+			}
+
+			#download-btn {
+				width: 100%;
+				padding: 12px 16px;
+				box-sizing: border-box;
+			}
+
+			#videos-grid {
+				grid-template-columns: 1fr;
+				gap: 14px;
+			}
+
+			.media-card video,
+			.media-card img,
+			.media-retry {
+				height: auto;
+				aspect-ratio: 2 / 3;
+			}
+
+			.laser-actions {
+				gap: 8px;
+				padding: 10px;
+			}
+
+			.laser-actions button {
+				padding: 9px 8px;
+				font-size: 13.5px;
+				font-weight: bold;
+			}
+
+			.category-section {
+				flex-direction: column;
+				padding: 12px;
+				gap: 12px;
+			}
+
+			.category-title {
+				flex: none;
+				justify-content: flex-start;
+				padding: 0 0 8px;
+				border-right: 0;
+				border-bottom: 2px solid var(--primary);
+				text-align: left;
+				font-size: 1rem;
+			}
+
+			.category-media-grid {
+				grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+				gap: 10px;
+			}
+
+			.suit-media-card img,
+			.suit-media-card video {
+				height: 180px;
+				padding: 6px;
+			}
+
+			.suit-media-card video {
+				padding: 0;
+			}
+
+			.suit-media-card .media-retry {
+				height: 180px;
+			}
+		}
 	</style>
 </head>
 <body>
@@ -851,8 +1038,8 @@ const htmlContent = `
 				<span class="result-title-area">
 					<span id="result-name">提取结果</span>
 					<span id="result-hints" class="result-hints">
-						<span>快捷键 S：鼠标位于某个数字周边上时，可单独下载该图片、视频或当前镭射效果。</span>
-						<span>镭射预览仅供参考，实际效果可能与 B 站存在差异。</span>
+						<span>PC端快捷键 S：鼠标位于任意数字周边上时，可单独下载该图片、视频或当前镭射效果的图片。</span>
+						<span>镭射图等图片均可点击放大查看！！！镭射预览仅供参考，实际效果可能与 B 站存在差异！</span>
 					</span>
 				</span>
 				<button id="download-btn" onclick="downloadCurrentResult()">打包下载全部</button>
@@ -864,6 +1051,29 @@ const htmlContent = `
 			<div id="suit-resources-grid" class="result-content" hidden></div>
 		</div>
 	</div>
+
+	<div id="image-modal" class="image-modal" aria-hidden="true">
+		<div class="image-modal-backdrop" onclick="closeImageModal()"></div>
+		<div class="image-modal-content">
+			<img id="image-modal-img" alt="放大预览" draggable="false">
+			<div id="image-modal-laser-wrapper" class="image-modal-laser-wrapper" style="display: none;">
+				<canvas id="image-modal-laser-canvas"></canvas>
+			</div>
+		</div>
+		<div class="image-modal-footer">
+			<div id="modal-laser-hint" class="image-modal-laser-hint" style="display: none;">✦ 动态镭射全屏预览（移动或晃动体验光效）</div>
+			<div class="image-modal-toolbar">
+				<button type="button" id="modal-zoom-in-btn" class="image-modal-btn" onclick="zoomImageModal(1.25)" title="放大">+</button>
+				<button type="button" id="modal-zoom-out-btn" class="image-modal-btn" onclick="zoomImageModal(0.8)" title="缩小">−</button>
+				<button type="button" id="modal-reset-btn" class="image-modal-btn" onclick="resetImageModalZoom()" title="重置">↺</button>
+				<button type="button" id="modal-laser-toggle-btn" class="image-modal-btn" style="display: none; width: auto; padding: 0 14px; border-radius: 999px; font-size: 13.5px;" onclick="toggleModalLaser()">关闭镭射</button>
+				<button type="button" id="modal-laser-save-btn" class="image-modal-btn" style="display: none; width: auto; padding: 0 14px; border-radius: 999px; font-size: 13.5px;" onclick="saveModalLaser()">保存效果</button>
+				<span id="modal-tip-text" class="image-modal-tip">滚轮缩放 / 拖拽平移</span>
+			</div>
+		</div>
+		<button type="button" class="image-modal-close" onclick="closeImageModal()" aria-label="关闭预览" title="关闭 (ESC)">×</button>
+	</div>
+
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 	<script>
@@ -913,6 +1123,363 @@ const htmlContent = `
 		function downloadCurrentResult() {
 			return activeResult === 'suit' ? downloadSuitFilesAsZip() : downloadFilesAsZip();
 		}
+
+		const modalState = {
+			scale: 1,
+			translateX: 0,
+			translateY: 0,
+			isDragging: false,
+			startX: 0,
+			startY: 0,
+			initialTranslateX: 0,
+			initialTranslateY: 0,
+			initialDistance: 0,
+			initialScale: 1
+		};
+
+		function applyModalTransform(smooth = true) {
+			const modalImg = document.getElementById('image-modal-img');
+			const laserWrapper = document.getElementById('image-modal-laser-wrapper');
+			const targetEl = modalLaserRenderer ? laserWrapper : modalImg;
+			if (!targetEl) return;
+			targetEl.style.transition = smooth ? 'transform 0.08s ease-out' : 'none';
+			targetEl.style.transform = `translate(${modalState.translateX}px, ${modalState.translateY}px) scale(${modalState.scale})`;
+			if (!modalLaserRenderer) {
+				targetEl.style.cursor = modalState.scale > 1 ? 'grab' : 'zoom-in';
+			}
+		}
+
+		function zoomImageModal(factor) {
+			let newScale = modalState.scale * factor;
+			newScale = Math.max(0.5, Math.min(8, newScale));
+			if (Math.abs(newScale - 1) < 0.05 && factor < 1.05 && factor > 0.95) {
+				newScale = 1;
+			}
+			modalState.scale = newScale;
+			if (newScale <= 1) {
+				modalState.translateX = 0;
+				modalState.translateY = 0;
+			}
+			applyModalTransform(true);
+		}
+
+		function resetImageModalZoom() {
+			modalState.scale = 1;
+			modalState.translateX = 0;
+			modalState.translateY = 0;
+			applyModalTransform(true);
+		}
+
+		let modalLaserRenderer = null;
+
+		function openLaserModal(sourceRenderer, titleText = '镭射款') {
+			const modal = document.getElementById('image-modal');
+			const modalImg = document.getElementById('image-modal-img');
+			const laserWrapper = document.getElementById('image-modal-laser-wrapper');
+			const laserCanvas = document.getElementById('image-modal-laser-canvas');
+			const laserHint = document.getElementById('modal-laser-hint');
+			const tipText = document.getElementById('modal-tip-text');
+			const zoomInBtn = document.getElementById('modal-zoom-in-btn');
+			const zoomOutBtn = document.getElementById('modal-zoom-out-btn');
+			const resetBtn = document.getElementById('modal-reset-btn');
+			const toggleBtn = document.getElementById('modal-laser-toggle-btn');
+			const saveBtn = document.getElementById('modal-laser-save-btn');
+
+			if (!modal || !laserWrapper || !laserCanvas || !sourceRenderer?.ready) return;
+
+			if (modalLaserRenderer) {
+				laserRenderers.delete(modalLaserRenderer);
+				modalLaserRenderer = null;
+			}
+
+			modalImg.style.display = 'none';
+			laserWrapper.style.display = 'flex';
+
+			if (laserHint) laserHint.style.display = 'block';
+			if (zoomInBtn) zoomInBtn.style.display = 'inline-flex';
+			if (zoomOutBtn) zoomOutBtn.style.display = 'inline-flex';
+			if (resetBtn) resetBtn.style.display = 'inline-flex';
+			if (toggleBtn) {
+				toggleBtn.style.display = 'inline-flex';
+				toggleBtn.innerText = sourceRenderer.enabled ? '关闭镭射' : '开启镭射';
+			}
+			if (saveBtn) saveBtn.style.display = 'inline-flex';
+			if (tipText) tipText.style.display = 'none';
+
+			const width = Math.min(1080, sourceRenderer.canvas.width || 828);
+			const height = Math.round(width * (sourceRenderer.canvas.height || 1242) / (sourceRenderer.canvas.width || 828));
+			laserCanvas.width = width;
+			laserCanvas.height = height;
+
+			modalLaserRenderer = {
+				stage: laserWrapper,
+				canvas: laserCanvas,
+				context: laserCanvas.getContext('2d'),
+				maskCanvas: sourceRenderer.maskCanvas,
+				effectCanvas: sourceRenderer.effectCanvas,
+				baseImage: sourceRenderer.baseImage,
+				config: sourceRenderer.config,
+				pointerX: sourceRenderer.pointerX,
+				pointerY: sourceRenderer.pointerY,
+				enabled: sourceRenderer.enabled,
+				visible: true,
+				ready: true,
+				titleText: titleText,
+				sourceRenderer: sourceRenderer
+			};
+			laserRenderers.add(modalLaserRenderer);
+
+			resetImageModalZoom();
+			modal.classList.add('active');
+			modal.setAttribute('aria-hidden', 'false');
+			document.body.style.overflow = 'hidden';
+
+			drawLaserFrame(modalLaserRenderer, performance.now());
+			startLaserAnimation();
+		}
+
+		function toggleModalLaser() {
+			if (!modalLaserRenderer) return;
+			modalLaserRenderer.enabled = !modalLaserRenderer.enabled;
+			if (modalLaserRenderer.sourceRenderer) {
+				modalLaserRenderer.sourceRenderer.enabled = modalLaserRenderer.enabled;
+			}
+			const btn = document.getElementById('modal-laser-toggle-btn');
+			if (btn) btn.innerText = modalLaserRenderer.enabled ? '关闭镭射' : '开启镭射';
+			drawLaserFrame(modalLaserRenderer, performance.now());
+		}
+
+		async function saveModalLaser() {
+			if (!modalLaserRenderer) return;
+			try {
+				await saveLaserPreview(modalLaserRenderer, modalLaserRenderer.titleText);
+			} catch (err) {
+				alert('保存失败：' + err.message);
+			}
+		}
+
+		function openImageModal(src, alt = '放大预览') {
+			const modal = document.getElementById('image-modal');
+			const modalImg = document.getElementById('image-modal-img');
+			const laserWrapper = document.getElementById('image-modal-laser-wrapper');
+			const laserHint = document.getElementById('modal-laser-hint');
+			const tipText = document.getElementById('modal-tip-text');
+			const zoomInBtn = document.getElementById('modal-zoom-in-btn');
+			const zoomOutBtn = document.getElementById('modal-zoom-out-btn');
+			const resetBtn = document.getElementById('modal-reset-btn');
+			const toggleBtn = document.getElementById('modal-laser-toggle-btn');
+			const saveBtn = document.getElementById('modal-laser-save-btn');
+
+			if (!modal || !modalImg || !src) return;
+
+			if (modalLaserRenderer) {
+				laserRenderers.delete(modalLaserRenderer);
+				modalLaserRenderer = null;
+			}
+
+			modalImg.style.display = 'block';
+			if (laserWrapper) laserWrapper.style.display = 'none';
+			if (laserHint) laserHint.style.display = 'none';
+
+			if (zoomInBtn) zoomInBtn.style.display = 'inline-flex';
+			if (zoomOutBtn) zoomOutBtn.style.display = 'inline-flex';
+			if (resetBtn) resetBtn.style.display = 'inline-flex';
+			if (toggleBtn) toggleBtn.style.display = 'none';
+			if (saveBtn) saveBtn.style.display = 'none';
+			if (tipText) {
+				tipText.style.display = '';
+				tipText.innerText = '滚轮缩放 / 拖拽平移';
+			}
+
+			modalImg.src = src;
+			modalImg.alt = alt || '放大预览';
+			resetImageModalZoom();
+			modal.classList.add('active');
+			modal.setAttribute('aria-hidden', 'false');
+			document.body.style.overflow = 'hidden';
+		}
+
+		function closeImageModal() {
+			const modal = document.getElementById('image-modal');
+			if (!modal || !modal.classList.contains('active')) return;
+
+			if (modalLaserRenderer) {
+				laserRenderers.delete(modalLaserRenderer);
+				modalLaserRenderer = null;
+			}
+
+			const laserHint = document.getElementById('modal-laser-hint');
+			if (laserHint) laserHint.style.display = 'none';
+
+			modal.classList.remove('active');
+			modal.setAttribute('aria-hidden', 'true');
+			document.body.style.overflow = '';
+			resetImageModalZoom();
+		}
+
+		const imageModalEl = document.getElementById('image-modal');
+		const imageModalImgEl = document.getElementById('image-modal-img');
+		const imageModalLaserWrapperEl = document.getElementById('image-modal-laser-wrapper');
+
+		const startModalDrag = (clientX, clientY) => {
+			modalState.isDragging = true;
+			modalState.startX = clientX;
+			modalState.startY = clientY;
+			modalState.initialTranslateX = modalState.translateX;
+			modalState.initialTranslateY = modalState.translateY;
+			imageModalEl?.classList.add('is-dragging');
+		};
+
+		if (imageModalEl) {
+			imageModalEl.addEventListener('wheel', event => {
+				event.preventDefault();
+				const zoomFactor = event.deltaY < 0 ? 1.15 : 0.87;
+				zoomImageModal(zoomFactor);
+			}, { passive: false });
+		}
+
+		if (imageModalImgEl) {
+			imageModalImgEl.addEventListener('mousedown', event => {
+				if (event.button !== 0) return;
+				event.preventDefault();
+				startModalDrag(event.clientX, event.clientY);
+			});
+
+			imageModalImgEl.addEventListener('dblclick', event => {
+				event.preventDefault();
+				if (modalState.scale > 1.05) {
+					resetImageModalZoom();
+				} else {
+					modalState.scale = 2.5;
+					applyModalTransform(true);
+				}
+			});
+		}
+
+		if (imageModalLaserWrapperEl) {
+			const updateModalLaserPointer = (clientX, clientY) => {
+				if (!modalLaserRenderer) return;
+				const rect = imageModalLaserWrapperEl.getBoundingClientRect();
+				modalLaserRenderer.pointerX = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+				modalLaserRenderer.pointerY = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+				if (modalLaserRenderer.sourceRenderer) {
+					modalLaserRenderer.sourceRenderer.pointerX = modalLaserRenderer.pointerX;
+					modalLaserRenderer.sourceRenderer.pointerY = modalLaserRenderer.pointerY;
+				}
+				drawLaserFrame(modalLaserRenderer, performance.now());
+			};
+
+			imageModalLaserWrapperEl.addEventListener('pointermove', event => {
+				updateModalLaserPointer(event.clientX, event.clientY);
+			});
+
+			imageModalLaserWrapperEl.addEventListener('mousedown', event => {
+				if (event.button !== 0) return;
+				if (modalState.scale > 1) {
+					event.preventDefault();
+					startModalDrag(event.clientX, event.clientY);
+				}
+			});
+
+			imageModalLaserWrapperEl.addEventListener('dblclick', event => {
+				event.preventDefault();
+				if (modalState.scale > 1.05) {
+					resetImageModalZoom();
+				} else {
+					modalState.scale = 2.5;
+					applyModalTransform(true);
+				}
+			});
+		}
+
+		window.addEventListener('mousemove', event => {
+			if (!modalState.isDragging) return;
+			event.preventDefault();
+			const deltaX = event.clientX - modalState.startX;
+			const deltaY = event.clientY - modalState.startY;
+			modalState.translateX = modalState.initialTranslateX + deltaX;
+			modalState.translateY = modalState.initialTranslateY + deltaY;
+			applyModalTransform(false);
+		});
+
+		window.addEventListener('mouseup', () => {
+			if (modalState.isDragging) {
+				modalState.isDragging = false;
+				imageModalEl?.classList.remove('is-dragging');
+				applyModalTransform(true);
+			}
+		});
+
+		if (imageModalEl) {
+			imageModalEl.addEventListener('touchstart', event => {
+				if (event.touches.length === 1 && modalState.scale > 1) {
+					const touch = event.touches[0];
+					startModalDrag(touch.clientX, touch.clientY);
+				} else if (event.touches.length === 2) {
+					modalState.isDragging = false;
+					const touch1 = event.touches[0];
+					const touch2 = event.touches[1];
+					modalState.initialDistance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+					modalState.initialScale = modalState.scale;
+				}
+			}, { passive: true });
+
+			imageModalEl.addEventListener('touchmove', event => {
+				if (event.touches.length === 1 && modalLaserRenderer && imageModalLaserWrapperEl) {
+					const rect = imageModalLaserWrapperEl.getBoundingClientRect();
+					modalLaserRenderer.pointerX = Math.max(0, Math.min(1, (event.touches[0].clientX - rect.left) / rect.width));
+					modalLaserRenderer.pointerY = Math.max(0, Math.min(1, (event.touches[0].clientY - rect.top) / rect.height));
+					if (modalLaserRenderer.sourceRenderer) {
+						modalLaserRenderer.sourceRenderer.pointerX = modalLaserRenderer.pointerX;
+						modalLaserRenderer.sourceRenderer.pointerY = modalLaserRenderer.pointerY;
+					}
+					drawLaserFrame(modalLaserRenderer, performance.now());
+				}
+
+				if (event.touches.length === 1 && modalState.isDragging && modalState.scale > 1) {
+					event.preventDefault();
+					const touch = event.touches[0];
+					const deltaX = touch.clientX - modalState.startX;
+					const deltaY = touch.clientY - modalState.startY;
+					modalState.translateX = modalState.initialTranslateX + deltaX;
+					modalState.translateY = modalState.initialTranslateY + deltaY;
+					applyModalTransform(false);
+				} else if (event.touches.length === 2 && modalState.initialDistance > 0) {
+					event.preventDefault();
+					const touch1 = event.touches[0];
+					const touch2 = event.touches[1];
+					const currentDistance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+					const factor = currentDistance / modalState.initialDistance;
+					modalState.scale = Math.max(0.5, Math.min(8, modalState.initialScale * factor));
+					applyModalTransform(false);
+				}
+			}, { passive: false });
+
+			imageModalEl.addEventListener('touchend', event => {
+				if (event.touches.length === 0) {
+					modalState.isDragging = false;
+					modalState.initialDistance = 0;
+					if (modalState.scale < 1) {
+						resetImageModalZoom();
+					} else {
+						applyModalTransform(true);
+					}
+				}
+			}, { passive: true });
+		}
+
+		document.addEventListener('click', event => {
+			const target = event.target;
+			if (target instanceof HTMLImageElement && target.closest('.media-card') && !target.closest('.laser-stage') && !target.closest('.image-modal')) {
+				openImageModal(target.src, target.alt);
+			}
+		});
+
+		document.addEventListener('keydown', event => {
+			if (event.key === 'Escape') {
+				closeImageModal();
+			}
+		});
 
 		function getScreenOrientationAngle() {
 		    const angle = screen.orientation?.angle ?? window.orientation ?? 0;
@@ -1452,7 +2019,7 @@ const htmlContent = `
 		        document.getElementById('suit-resources-grid').hidden = true;
 		        document.getElementById('result-panel').style.display = 'block';
 		        document.getElementById('result-name').innerText = zipName;
-		        document.getElementById('result-hints').innerHTML = '<span>快捷键 S：鼠标位于某个数字周边上时，可单独下载该图片、视频或当前镭射效果。</span><span>镭射预览仅供参考，实际效果可能与 B 站存在差异。</span>';
+		        document.getElementById('result-hints').innerHTML = '<span>PC端快捷键 S：鼠标位于某个数字周边上时，可单独下载该图片、视频或当前镭射效果的图片。</span><span>镭射图等图片均可点击放大查看！！！镭射预览仅供参考，实际效果可能与 B 站存在差异！</span>';
 		        const itemList = Array.isArray(infos.item_list) ? [...infos.item_list] : [];
 		        const seen = new Set();
 		        function addImageItem(cardName, cardImg) {
@@ -1535,7 +2102,7 @@ const htmlContent = `
 			[...order.filter(category=>grouped[category]),...Object.keys(grouped).filter(category=>!order.includes(category))].forEach(category=>{ const section=document.createElement('section'); section.className='category-section'; const heading=document.createElement('div'); heading.className='category-title'; heading.append((icons[category]||'📦')+' '+category+' '); const count=document.createElement('span'); count.className='count-badge'; count.innerText=grouped[category].length; heading.appendChild(count); const cards=document.createElement('div'); cards.className='category-media-grid'; grouped[category].forEach(resource=>cards.appendChild(createSuitResourceCard(resource))); section.append(heading,cards); grid.appendChild(section); });
 		}
 		function parseSuitData() {
-			try { const raw=document.getElementById('data').value.trim(); if(!raw) throw new Error('JSON 数据不能为空！'); const json=JSON.parse(raw); if(json.code!=null&&json.code!==0)throw new Error(json.message||('API 返回错误：'+json.code)); const data=json.data||json; if(!data?.suit_items&&!data?.properties)throw new Error('未找到有效的装扮数据！'); suitZipName=data.name||'装扮资源'; suitResources=extractSuitResources(data); if(!suitResources.length)throw new Error('未能提取到任何资源！'); activeResult='suit'; document.getElementById('videos-grid').hidden=true; document.getElementById('suit-resources-grid').hidden=false; document.getElementById('result-panel').style.display='block'; document.getElementById('result-name').innerText=suitZipName+'（'+suitResources.length+' 项资源）'; document.getElementById('result-hints').textContent='快捷键 S：鼠标位于资源卡片上时，可单独下载该资源。'; renderSuitResourceGrid(suitResources); document.getElementById('result-panel').scrollIntoView({behavior:'smooth',block:'start'}); } catch(error) { alert('解析失败：'+error.message); }
+			try { const raw=document.getElementById('data').value.trim(); if(!raw) throw new Error('JSON 数据不能为空！'); const json=JSON.parse(raw); if(json.code!=null&&json.code!==0)throw new Error(json.message||('API 返回错误：'+json.code)); const data=json.data||json; if(!data?.suit_items&&!data?.properties)throw new Error('未找到有效的装扮数据！'); suitZipName=data.name||'装扮资源'; suitResources=extractSuitResources(data); if(!suitResources.length)throw new Error('未能提取到任何资源！'); activeResult='suit'; document.getElementById('videos-grid').hidden=true; document.getElementById('suit-resources-grid').hidden=false; document.getElementById('result-panel').style.display='block'; document.getElementById('result-name').innerText=suitZipName+'（'+suitResources.length+' 项资源）'; document.getElementById('result-hints').innerHTML = '<span>PC端快捷键 S：鼠标位于任意数字周边上时，可单独下载该图片、视频或当前镭射效果的图片。</span><span>镭射图等图片均可点击放大查看！！！镭射预览仅供参考，实际效果可能与 B 站存在差异！</span>';renderSuitResourceGrid(suitResources); document.getElementById('result-panel').scrollIntoView({behavior:'smooth',block:'start'}); } catch(error) { alert('解析失败：'+error.message); }
 		}
 		function renderPastedData() {
 			try { const raw=document.getElementById('data').value.trim(); if(!raw)throw new Error('JSON 数据不能为空！'); const json=JSON.parse(raw), payload=json?.data||json; if(payload?.suit_items||payload?.properties?.image_cover||payload?.properties?.fan_share_image) { parseSuitData(); return; } if(Array.isArray(payload?.item_list)||payload?.collect_list) { getVideos(); return; } throw new Error('JSON 中未识别出装扮资源或数字周边数据。'); } catch(error) { alert('识别失败：'+error.message); }
@@ -1732,6 +2299,12 @@ const htmlContent = `
 		        renderer.pointerY = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height));
 		    };
 		    stage.addEventListener('pointermove', updatePointer);
+		    stage.addEventListener('click', event => {
+		        if (event.target instanceof HTMLButtonElement) return;
+		        if (renderer.ready) {
+		            openLaserModal(renderer, titleText);
+		        }
+		    });
 		    toggleButton.addEventListener('click', () => {
 		        renderer.enabled = !renderer.enabled;
 		        toggleButton.innerText = renderer.enabled ? '关闭镭射' : '开启镭射';
