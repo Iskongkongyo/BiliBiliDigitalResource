@@ -1143,7 +1143,7 @@ const htmlContent = `
 			const targetEl = modalLaserRenderer ? laserWrapper : modalImg;
 			if (!targetEl) return;
 			targetEl.style.transition = smooth ? 'transform 0.08s ease-out' : 'none';
-			targetEl.style.transform = `translate(${modalState.translateX}px, ${modalState.translateY}px) scale(${modalState.scale})`;
+			targetEl.style.transform = 'translate(' + modalState.translateX + 'px, ' + modalState.translateY + 'px) scale(' + modalState.scale + ')';
 			if (!modalLaserRenderer) {
 				targetEl.style.cursor = modalState.scale > 1 ? 'grab' : 'zoom-in';
 			}
