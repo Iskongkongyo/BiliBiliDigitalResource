@@ -783,12 +783,12 @@
                     </a>
                 </span>
             </h1>
-            <p id="mode-description" style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">自动模式会通过代理请求接口并直接渲染；手动模式只打开对应接口页面，由你复制 JSON 后渲染。</p>
+            <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;"><span id="mode-description">自动模式会通过所选接口代理请求并直接渲染。</span>打开<a id="mall-link" class="mall-link" href="bilibili://forward?-Btarget=https%3A%2F%2Fwww.bilibili.com%2Fh5%2Fmall%2Fhome%3Fnavhide%3D1">个性装扮(点我跳转)</a>，在装扮商城里进入想要下载的个性装扮，点击右上角分享获取链接。</p>
 
             <div class="step-container">
                 <div class="step-title"><span class="step-badge">1</span> 粘贴商品链接</div>
-                <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">支持数字周边活动分享链接与 <code>suit/detail</code> 装扮商品链接；系统会根据链接自动识别类型。</p>
-                <textarea id="source-url" rows="4" placeholder="例如：数字周边活动链接，或 https://www.bilibili.com/h5/mall/suit/detail?id=202954701"></textarea>
+                <p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">支持个性装扮内绝大多数商品的链接；系统会根据链接自动识别类型。</p>
+                <textarea id="source-url" rows="4" placeholder="例如：数字周边活动链接和个性装扮链接"></textarea>
                 <div style="margin-top: 10px; text-align: right;"><button id="fetch-btn" type="button" onclick="getData()">一键智能解析</button></div>
             </div>
 
@@ -878,6 +878,41 @@
         let suitResources = [];
         let suitZipName = '装扮资源';
 
+        function isMobileOrTablet() {
+            const ua = navigator.userAgent || navigator.vendor || window.opera || '';
+            const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|Tablet|tablet|iPad|PlayBook|Silk|(windows phone)/i;
+            const isIPadOS = /Macintosh/i.test(ua) && navigator.maxTouchPoints && navigator.maxTouchPoints > 1;
+            const isSmallScreenTouch = (('ontouchstart' in window) || navigator.maxTouchPoints > 0) && window.matchMedia('(max-width: 1024px)').matches;
+            return mobileRegex.test(ua) || isIPadOS || isSmallScreenTouch;
+        }
+
+        function initMallLink() {
+            const mallLinks = document.querySelectorAll('#mall-link, .mall-link');
+            if (!mallLinks.length) return;
+            const isMobile = isMobileOrTablet();
+            const href = isMobile
+                ? 'bilibili://forward?-Btarget=https%3A%2F%2Fwww.bilibili.com%2Fh5%2Fmall%2Fhome%3Fnavhide%3D1'
+                : 'https://www.bilibili.com/h5/mall/home?navhide=1&from=icon.shop&f_source=shop';
+            const text = '个性装扮(点我跳转)';
+
+            mallLinks.forEach(link => {
+                link.href = href;
+                link.innerText = text;
+                if (isMobile) {
+                    link.removeAttribute('target');
+                    link.removeAttribute('rel');
+                } else {
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                }
+            });
+        }
+
+        initMallLink();
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initMallLink);
+        }
+
         function switchMode(mode) {
             if (!['auto', 'manual'].includes(mode) || mode === activeMode) return;
             if (isDownloading) {
@@ -888,8 +923,8 @@
             activeMode = mode;
             const isAuto = mode === 'auto';
             document.getElementById('mode-description').innerText = isAuto
-                ? '自动模式会通过代理请求接口并直接渲染；手动模式只打开对应接口页面，由你复制 JSON 后渲染。'
-                : '手动模式不会通过代理请求接口。点击按钮后会直接打开对应 API 页面，请复制完整 JSON 再粘贴到下方渲染。';
+                ? '自动模式会通过所选接口代理请求并直接渲染。'
+                : '手动模式不会通过代理请求接口。点击按钮后会直接打开对应页面，请复制完整页面内容再粘贴到下方渲染。';
             document.getElementById('fetch-btn').innerText = isAuto ? '一键智能解析' : '打开对应接口';
             document.querySelectorAll('[data-mode]').forEach(button => {
                 button.classList.toggle('active', button.dataset.mode === mode);
