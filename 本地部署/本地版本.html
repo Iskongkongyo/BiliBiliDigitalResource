@@ -1233,6 +1233,21 @@
                 if (!raw) throw new Error('JSON 数据不能为空！');
                 const json = JSON.parse(raw);
                 const payload = json?.data || json;
+                if (Array.isArray(payload?.lottery_list)) {
+                    const sourceUrl = document.getElementById('source-url').value.trim();
+                    const id = getParam(sourceUrl, 'act_id') || getParam(sourceUrl, 'id');
+                    if (!id) throw new Error('商品链接中未找到有效的 act_id 或 id！');
+
+                    const lotteryList = getAvailableLotteries(payload);
+                    if (lotteryList.length >= 2) {
+                        showLotterySelection(id, lotteryList, payload.tab_lottery_id, 'manual');
+                    } else {
+                        const lotteryId = payload.tab_lottery_id || lotteryList[0]?.lottery_id;
+                        if (!lotteryId) throw new Error('基础接口中未找到有效的 lottery_id！');
+                        openDigitalDetailApi(id, lotteryId);
+                    }
+                    return;
+                }
                 if (payload?.suit_items || payload?.properties?.image_cover || payload?.properties?.fan_share_image) {
                     parseSuitData();
                     return;
@@ -1839,19 +1854,29 @@
             return `https://api.bilibili.com/x/vas/dlc_act/lottery_home_detail?act_id=${encodeURIComponent(id)}&appkey=1d8b6e7d45233436&disable_rcmd=0&sign=341070dd7b86b7ce7c3655972d9824a7&lottery_id=${encodeURIComponent(lotteryId)}&ts=${Math.floor(Date.now() / 1000)}&mobi_app=android&platform=android`;
         }
 
+        function buildDigitalBasicApiUrl(id) {
+            return `https://api.bilibili.com/x/vas/dlc_act/act/basic?act_id=${encodeURIComponent(id)}&csrf=`;
+        }
+
+        function getAvailableLotteries(payload) {
+            const lotteryList = Array.isArray(payload?.lottery_list) ? payload.lottery_list : [];
+            return lotteryList.filter(lottery => lottery?.lottery_id != null && String(lottery.lottery_id).trim() !== '');
+        }
+
+        function openDigitalDetailApi(id, lotteryId) {
+            const targetUrl = buildDigitalDetailApiUrl(id, lotteryId);
+            document.getElementById('lottery-selection-panel').style.display = 'none';
+            alert('即将打开所选数字周边的详情接口，请复制全部 JSON 并粘贴到第 2 步渲染。');
+            window.open(targetUrl, '_blank', 'noopener,noreferrer');
+        }
+
         function openDigitalApi() {
             const filepath = document.getElementById('source-url').value.trim();
             if (!filepath) { alert('URL 路径不能为空！'); return; }
             const id = getParam(filepath, 'act_id') || getParam(filepath, 'id');
             if (!id) { alert('未找到有效的 act_id 或 id，请检查 URL 链接！'); return; }
-            const lotteryId = getParam(filepath, 'lottery_id');
-            const hasLotteryId = lotteryId && lotteryId !== 'undefined' && lotteryId !== 'null';
-            const targetUrl = hasLotteryId
-                ? buildDigitalDetailApiUrl(id, lotteryId)
-                : `https://api.bilibili.com/x/vas/dlc_act/act/basic?act_id=${encodeURIComponent(id)}&csrf=`;
-            alert(hasLotteryId
-                ? '即将打开数字周边详情接口，请复制全部 JSON 并粘贴到第 2 步渲染。'
-                : '链接中没有 lottery_id，已打开基础接口。请先从 data.tab_lottery_id 或 lottery_list 确认目标后，再使用带 lottery_id 的分享链接打开详情接口。');
+            const targetUrl = buildDigitalBasicApiUrl(id);
+            alert('即将打开数字周边基础接口（链接自带的 lottery_id 不影响选择）。请复制全部 JSON 并粘贴到第 2 步，工具会列出该活动下的全部数字周边。');
             window.open(targetUrl, '_blank', 'noopener,noreferrer');
         }
 
@@ -1878,7 +1903,7 @@
             }
         }
 
-        function showLotterySelection(id, lotteryList, tabLotteryId) {
+        function showLotterySelection(id, lotteryList, tabLotteryId, selectionMode = 'auto') {
             const panel = document.getElementById('lottery-selection-panel');
             const container = document.getElementById('lottery-buttons');
             container.innerHTML = '';
@@ -1889,14 +1914,19 @@
                     b.classList.add('recommended');
                     b.innerText += ' ★';
                 }
-                b.onclick = function() { selectLottery(id, lottery.lottery_id); };
+                b.onclick = function() { selectLottery(id, lottery.lottery_id, selectionMode); };
                 container.appendChild(b);
             });
             panel.style.display = 'block';
             panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
-        async function selectLottery(id, lotteryId) {
+        async function selectLottery(id, lotteryId, selectionMode = 'auto') {
+            if (selectionMode === 'manual') {
+                openDigitalDetailApi(id, lotteryId);
+                return;
+            }
+
             const btn = document.getElementById('fetch-btn');
             btn.innerText = '正在通过代理获取数据...';
             btn.disabled = true;
@@ -1909,10 +1939,12 @@
             let normalizedUrl = rawUrl;
             try { normalizedUrl = decodeURIComponent(rawUrl); } catch (error) { console.warn('链接解码失败，将按原链接识别：', error); }
             normalizedUrl = normalizedUrl.toLowerCase();
+            const activityId = getParam(sourceUrl, 'act_id') || getParam(sourceUrl, 'id');
+            const linkType = String(getParam(sourceUrl, 'type') || '').toLowerCase();
             if (/\/suit\/detail(?:[/?#]|$)|\/garb\/v2\/mall\/suit\/detail(?:[/?#]|$)/.test(normalizedUrl)) {
                 return 'suit';
             }
-            if (getParam(sourceUrl, 'act_id') || getParam(sourceUrl, 'lottery_id') || /\/vas\/dlc_act\//.test(normalizedUrl) || (getParam(sourceUrl, 'id') && /\/h5\/mall\//.test(normalizedUrl))) {
+            if (getParam(sourceUrl, 'act_id') || getParam(sourceUrl, 'lottery_id') || /\/vas\/dlc_act\//.test(normalizedUrl) || (activityId && linkType === 'dlc') || (getParam(sourceUrl, 'id') && /\/h5\/mall\//.test(normalizedUrl))) {
                 return 'digital';
             }
             throw new Error('未识别出链接类型。请粘贴数字周边活动分享链接，或包含 suit/detail 的装扮商品链接。');
@@ -1946,32 +1978,33 @@
             btn.disabled = true;
             document.getElementById('lottery-selection-panel').style.display = 'none';
 
-            let lotteryId = getParam(filepath, 'lottery_id');
+            let lotteryId = null;
 
-            // 如果没有 lottery_id，尝试从 basic 接口中提取
-            if (!lotteryId || lotteryId == 'undefined' || lotteryId == 'null') {
-                try {
-                    const basicUrl = `https://api.bilibili.com/x/vas/dlc_act/act/basic?act_id=${id}&csrf=`;
-                    const basicData = await fetchJsonThroughProxy(basicUrl);
+            // 无论分享链接是否自带 lottery_id，都以 basic 接口返回的完整列表为准。
+            try {
+                const basicData = await fetchJsonThroughProxy(buildDigitalBasicApiUrl(id));
+                if (basicData?.code != null && basicData.code !== 0) {
+                    throw new Error(basicData.message || `API 返回错误：${basicData.code}`);
+                }
 
-                    const lotteryList = basicData?.data?.lottery_list || [];
-                    const tabLotteryId = basicData?.data?.tab_lottery_id;
+                const payload = basicData?.data || {};
+                const lotteryList = getAvailableLotteries(payload);
+                const tabLotteryId = payload.tab_lottery_id;
 
-                    if (lotteryList.length >= 2) {
-                        showLotterySelection(id, lotteryList, tabLotteryId);
-                        btn.innerText = originalBtnText;
-                        btn.disabled = false;
-                        return;
-                    }
-
-                    lotteryId = tabLotteryId || lotteryList[0]?.lottery_id;
-                    if (!lotteryId) throw new Error('未找到有效的 lottery_id');
-                } catch (err) {
-                    alert(`获取作品 lottery_id 失败：${err.message}。请检查链接或稍后重试！`);
+                if (lotteryList.length >= 2) {
+                    showLotterySelection(id, lotteryList, tabLotteryId, 'auto');
                     btn.innerText = originalBtnText;
                     btn.disabled = false;
                     return;
                 }
+
+                lotteryId = tabLotteryId || lotteryList[0]?.lottery_id;
+                if (!lotteryId) throw new Error('基础接口中未找到有效的 lottery_id');
+            } catch (err) {
+                alert(`获取数字周边列表失败：${err.message}。请检查链接或稍后重试！`);
+                btn.innerText = originalBtnText;
+                btn.disabled = false;
+                return;
             }
 
             await fetchAndRenderDetail(id, lotteryId);
