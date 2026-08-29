@@ -1761,8 +1761,10 @@ const htmlContent = `
 			let normalized = rawUrl;
 			try { normalized = decodeURIComponent(rawUrl); } catch (error) { console.warn('链接解码失败，将按原链接识别：', error); }
 			normalized = normalized.toLowerCase();
+			const activityId = getParam(rawUrl, 'act_id') || getParam(rawUrl, 'id');
+			const linkType = String(getParam(rawUrl, 'type') || '').toLowerCase();
 			if (normalized.includes('/suit/detail') || normalized.includes('/garb/v2/mall/suit/detail')) return 'suit';
-			if (getParam(rawUrl, 'act_id') || getParam(rawUrl, 'lottery_id') || normalized.includes('/vas/dlc_act/') || (getParam(rawUrl, 'id') && normalized.includes('/h5/mall/'))) return 'digital';
+			if (getParam(rawUrl, 'act_id') || getParam(rawUrl, 'lottery_id') || normalized.includes('/vas/dlc_act/') || (activityId && linkType === 'dlc') || (getParam(rawUrl, 'id') && normalized.includes('/h5/mall/'))) return 'digital';
 			throw new Error('未识别出链接类型。请粘贴数字周边活动分享链接/文本，或包含 suit/detail 的装扮商品链接。');
 		}
 
@@ -1960,19 +1962,29 @@ const htmlContent = `
 		function buildDigitalDetailApiUrl(actId, lotteryId) {
 			return 'https://api.bilibili.com/x/vas/dlc_act/lottery_home_detail?act_id=' + encodeURIComponent(actId) + '&appkey=1d8b6e7d45233436&disable_rcmd=0&sign=341070dd7b86b7ce7c3655972d9824a7&lottery_id=' + encodeURIComponent(lotteryId) + '&ts=' + Math.floor(Date.now() / 1000) + '&mobi_app=android&platform=android';
 		}
+		function buildDigitalBasicApiUrl(actId) {
+			return 'https://api.bilibili.com/x/vas/dlc_act/act/basic?act_id=' + encodeURIComponent(actId) + '&csrf=';
+		}
+		function getAvailableLotteries(payload) {
+			const lotteryList = Array.isArray(payload?.lottery_list) ? payload.lottery_list : [];
+			return lotteryList.filter(lottery => lottery?.lottery_id != null && String(lottery.lottery_id).trim() !== '');
+		}
+		function openDigitalDetailApi(actId, lotteryId) {
+			const detailUrl = buildDigitalDetailApiUrl(actId, lotteryId);
+			document.getElementById('lottery-selection-panel').style.display = 'none';
+			alert('即将打开所选数字周边的详情接口，请复制完整 JSON 后粘贴到第 2 步渲染。');
+			window.open(detailUrl, '_blank', 'noopener,noreferrer');
+		}
 		function openManualApi(resourceType) {
 			const source = getSourceInput();
 			if (resourceType === 'suit') { window.open(buildSuitApiUrl(source), '_blank', 'noopener,noreferrer'); return; }
 			const actId = getParam(source, 'act_id') || getParam(source, 'id');
-			const lotteryId = getParam(source, 'lottery_id');
 			if (!actId) throw new Error('数字周边链接中未找到 act_id 或 id！');
-			const apiUrl = lotteryId && lotteryId !== 'undefined' && lotteryId !== 'null'
-				? buildDigitalDetailApiUrl(actId, lotteryId)
-				: 'https://api.bilibili.com/x/vas/dlc_act/act/basic?act_id=' + encodeURIComponent(actId) + '&csrf=';
-			alert(lotteryId ? '即将打开数字周边详情接口，请复制完整 JSON 后渲染。' : '链接中没有 lottery_id，已打开基础接口；请从返回数据确认目标 lottery_id 后，再使用带 lottery_id 的分享链接获取详情。');
+			const apiUrl = buildDigitalBasicApiUrl(actId);
+			alert('即将打开数字周边基础接口（链接自带的 lottery_id 不影响选择）。请复制完整 JSON 并粘贴到第 2 步，工具会列出该活动下的全部数字周边。');
 			window.open(apiUrl, '_blank', 'noopener,noreferrer');
 		}
-		function showLotterySelection(actId, lotteryList, tabLotteryId) {
+		function showLotterySelection(actId, lotteryList, tabLotteryId, selectionMode = 'auto') {
 			const panel = document.getElementById('lottery-selection-panel');
 			const container = document.getElementById('lottery-buttons');
 			container.replaceChildren();
@@ -1980,7 +1992,7 @@ const htmlContent = `
 				const button = document.createElement('button');
 				button.innerText = lottery.lottery_name || ('周边 ' + lottery.lottery_id);
 				if (String(lottery.lottery_id) === String(tabLotteryId)) { button.classList.add('recommended'); button.innerText += ' ★'; }
-				button.onclick = function() { selectLottery(actId, lottery.lottery_id); };
+				button.onclick = function() { selectLottery(actId, lottery.lottery_id, selectionMode); };
 				container.appendChild(button);
 			});
 			panel.style.display = 'block';
@@ -1994,7 +2006,12 @@ const htmlContent = `
 			document.getElementById('data').value = JSON.stringify(detailData, null, 2);
 			getVideos();
 		}
-		async function selectLottery(actId, lotteryId) {
+		async function selectLottery(actId, lotteryId, selectionMode = 'auto') {
+			if (selectionMode === 'manual') {
+				openDigitalDetailApi(actId, lotteryId);
+				return;
+			}
+
 			const button = document.getElementById('fetch-btn');
 			button.disabled = true; button.innerText = '正在获取数据...';
 			document.getElementById('lottery-selection-panel').style.display = 'none';
@@ -2005,17 +2022,17 @@ const htmlContent = `
 		async function getDigitalDataAutomatically(source) {
 			const actId = getParam(source, 'act_id') || getParam(source, 'id');
 			if (!actId) throw new Error('数字周边链接中未找到 act_id 或 id！');
-			let lotteryId = getParam(source, 'lottery_id');
-			if (!lotteryId || lotteryId === 'undefined' || lotteryId === 'null') {
-				const targetUrl = 'https://api.bilibili.com/x/vas/dlc_act/act/basic?act_id=' + encodeURIComponent(actId) + '&csrf=';
-				const basicData = await fetchJsonByProvider(targetUrl, '/api/basic?act_id=' + encodeURIComponent(actId));
-				if (basicData.code != null && basicData.code !== 0) throw new Error(basicData.message || ('API 返回错误：' + basicData.code));
-				const lotteryList = basicData?.data?.lottery_list || [];
-				const tabLotteryId = basicData?.data?.tab_lottery_id;
-				if (lotteryList.length >= 2) { showLotterySelection(actId, lotteryList, tabLotteryId); return; }
-				lotteryId = tabLotteryId || lotteryList[0]?.lottery_id;
-				if (!lotteryId) throw new Error('未找到有效的 lottery_id！');
-			}
+
+			// 无论分享链接是否自带 lottery_id，都以 basic 接口返回的完整列表为准。
+			const targetUrl = buildDigitalBasicApiUrl(actId);
+			const basicData = await fetchJsonByProvider(targetUrl, '/api/basic?act_id=' + encodeURIComponent(actId));
+			if (basicData.code != null && basicData.code !== 0) throw new Error(basicData.message || ('API 返回错误：' + basicData.code));
+			const payload = basicData?.data || {};
+			const lotteryList = getAvailableLotteries(payload);
+			const tabLotteryId = payload.tab_lottery_id;
+			if (lotteryList.length >= 2) { showLotterySelection(actId, lotteryList, tabLotteryId, 'auto'); return; }
+			const lotteryId = tabLotteryId || lotteryList[0]?.lottery_id;
+			if (!lotteryId) throw new Error('基础接口中未找到有效的 lottery_id！');
 			await fetchAndRenderDetail(actId, lotteryId);
 		}
 		async function getSuitDataAutomatically(source) {
@@ -2140,7 +2157,30 @@ const htmlContent = `
 			try { const raw=document.getElementById('data').value.trim(); if(!raw) throw new Error('JSON 数据不能为空！'); const json=JSON.parse(raw); if(json.code!=null&&json.code!==0)throw new Error(json.message||('API 返回错误：'+json.code)); const data=json.data||json; if(!data?.suit_items&&!data?.properties)throw new Error('未找到有效的装扮数据！'); suitZipName=data.name||'装扮资源'; suitResources=extractSuitResources(data); if(!suitResources.length)throw new Error('未能提取到任何资源！'); activeResult='suit'; document.getElementById('videos-grid').hidden=true; document.getElementById('suit-resources-grid').hidden=false; document.getElementById('result-panel').style.display='block'; document.getElementById('result-name').innerText=suitZipName+'（'+suitResources.length+' 项资源）'; document.getElementById('result-hints').innerHTML = '<span>PC端快捷键 S：鼠标位于任意数字周边上时，可单独下载该图片、视频或当前镭射效果的图片。</span><span>镭射图等图片均可点击放大查看！！！镭射预览仅供参考，实际效果可能与 B 站存在差异！</span>';renderSuitResourceGrid(suitResources); document.getElementById('result-panel').scrollIntoView({behavior:'smooth',block:'start'}); } catch(error) { alert('解析失败：'+error.message); }
 		}
 		function renderPastedData() {
-			try { const raw=document.getElementById('data').value.trim(); if(!raw)throw new Error('JSON 数据不能为空！'); const json=JSON.parse(raw), payload=json?.data||json; if(payload?.suit_items||payload?.properties?.image_cover||payload?.properties?.fan_share_image) { parseSuitData(); return; } if(Array.isArray(payload?.item_list)||payload?.collect_list) { getVideos(); return; } throw new Error('JSON 中未识别出装扮资源或数字周边数据。'); } catch(error) { alert('识别失败：'+error.message); }
+			try {
+				const raw = document.getElementById('data').value.trim();
+				if (!raw) throw new Error('JSON 数据不能为空！');
+				const json = JSON.parse(raw), payload = json?.data || json;
+				if (Array.isArray(payload?.lottery_list)) {
+					const source = getSourceInput();
+					const actId = getParam(source, 'act_id') || getParam(source, 'id');
+					if (!actId) throw new Error('商品链接中未找到有效的 act_id 或 id！');
+					const lotteryList = getAvailableLotteries(payload);
+					if (lotteryList.length >= 2) {
+						showLotterySelection(actId, lotteryList, payload.tab_lottery_id, 'manual');
+					} else {
+						const lotteryId = payload.tab_lottery_id || lotteryList[0]?.lottery_id;
+						if (!lotteryId) throw new Error('基础接口中未找到有效的 lottery_id！');
+						openDigitalDetailApi(actId, lotteryId);
+					}
+					return;
+				}
+				if (payload?.suit_items || payload?.properties?.image_cover || payload?.properties?.fan_share_image) { parseSuitData(); return; }
+				if (Array.isArray(payload?.item_list) || payload?.collect_list) { getVideos(); return; }
+				throw new Error('JSON 中未识别出装扮资源或数字周边数据。');
+			} catch(error) {
+				alert('识别失败：' + error.message);
+			}
 		}
 		function parseShineConfig(metaInfo) {
 		    const defaults = {
