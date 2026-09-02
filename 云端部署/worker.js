@@ -2566,6 +2566,35 @@ const htmlContent = `
             grid.appendChild(wrapper);
         });
         }
+		function blobToDataUrl(blob) {
+		    return new Promise((resolve, reject) => {
+		        const reader = new FileReader();
+		        reader.onload = () => typeof reader.result === 'string'
+		            ? resolve(reader.result)
+		            : reject(new Error('图片转换结果无效'));
+		        reader.onerror = () => reject(reader.error || new Error('图片转换失败'));
+		        reader.onabort = () => reject(new Error('图片转换已中止'));
+		        reader.readAsDataURL(blob);
+		    });
+		}
+		async function buildEmbeddedLaserGalleryItems(items, downloadedBlobs) {
+		    const dataUrlCache = new Map();
+		    const getDataUrl = url => {
+		        if (!url || !downloadedBlobs.has(url)) return Promise.resolve(null);
+		        if (!dataUrlCache.has(url)) {
+		            dataUrlCache.set(url, blobToDataUrl(downloadedBlobs.get(url)).catch(error => {
+		                console.warn('镭射图资源嵌入失败：' + url, error);
+		                return null;
+		            }));
+		        }
+		        return dataUrlCache.get(url);
+		    };
+		    const embeddedItems = await Promise.all(items.map(async item => {
+		        const pair = await Promise.all([getDataUrl(item.imageUrl), getDataUrl(item.controlUrl)]);
+		        return { title: item.name, image: pair[0], mask: pair[1] };
+		    }));
+		    return embeddedItems.filter(item => item.image && item.mask);
+		}
 		function buildLaserGalleryHtml(items) {
 		    const galleryData = JSON.stringify(items).replace(/</g, '\\u003c');
 		    return [
@@ -2621,7 +2650,7 @@ const htmlContent = `
 		        'const ITEMS=' + galleryData + ';',
 		        'const state={index:0,enabled:true,ready:false,baseImage:null,maskImage:null,pointerX:.5,pointerY:.5,motionEnabled:false,motionListening:false,motionBaseline:null};',
 		        'const canvas=document.getElementById("canvas"),ctx=canvas.getContext("2d"),maskCanvas=document.createElement("canvas"),effectCanvas=document.createElement("canvas"),stage=document.getElementById("stage"),statusBox=document.getElementById("status"),nameBox=document.getElementById("name"),counterBox=document.getElementById("counter"),toggleBtn=document.getElementById("toggle-btn"),saveBtn=document.getElementById("save-btn"),motionBtn=document.getElementById("motion-btn");',
-		        'function fileSrc(path){return String(path||"").split("/").map(encodeURIComponent).join("/");}',
+		        'function fileSrc(path){const source=String(path||"");return /^(?:data|blob):/i.test(source)?source:source.split("/").map(encodeURIComponent).join("/");}',
 		        'function mod(value,divisor){return ((value%divisor)+divisor)%divisor;}',
 		        'function cleanName(name){return String(name||"镭射图").replace(/[\\\\/:*?"<>|]/g,"").trim()||"镭射图";}',
 		        'function loadImage(path){return new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error("图片加载失败："+path));img.src=fileSrc(path);});}',
@@ -2746,7 +2775,7 @@ const htmlContent = `
 		    progressText.innerText = '准备下载...';
 		    downloadBtn.disabled = true;
 		    const zip = new JSZip();
-		    const downloadedPaths = new Map();
+		    const downloadedBlobs = new Map();
 		    let completedCount = 0;
 		    const CONCURRENCY_LIMIT = 2;
 		    let currentIndex = 0;
@@ -2780,8 +2809,8 @@ const htmlContent = `
 		    inferredExt = inferExtFromUrlOrBlob(originalUrl, blob);
 		    const fileName = directory + baseName + inferredExt;
 		    zip.file(fileName, blob);
-		    downloadedPaths.set(originalUrl, fileName);
-		    downloadedPaths.set(fetchUrl, fileName);
+		    downloadedBlobs.set(originalUrl, blob);
+		    downloadedBlobs.set(fetchUrl, blob);
 		} catch (error) {
 		    zip.file(
 		directory + baseName + '_下载失败记录_' + (index + 1) + '.txt',
@@ -2800,13 +2829,8 @@ const htmlContent = `
 		    };
 		    try {
 		        await Promise.all(Array.from({ length: Math.min(CONCURRENCY_LIMIT, downloadTasks.length) }, () => downloadWorker()));
-		        const laserGalleryItems = targetLaserPairs
-		            .map(item => ({
-		                title: item.name,
-		                image: downloadedPaths.get(item.imageUrl),
-		                mask: downloadedPaths.get(item.controlUrl)
-		            }))
-		            .filter(item => item.image && item.mask);
+		        progressText.innerText = '正在生成不依赖外部图片的镭射图展示页面...';
+		        const laserGalleryItems = await buildEmbeddedLaserGalleryItems(targetLaserPairs, downloadedBlobs);
 		        if (laserGalleryItems.length > 0) {
 		            zip.file('镭射图展示.html', buildLaserGalleryHtml(laserGalleryItems));
 		        }
