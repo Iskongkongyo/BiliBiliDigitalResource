@@ -2467,6 +2467,41 @@
             });
         }
 
+        function blobToDataUrl(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => typeof reader.result === 'string'
+                    ? resolve(reader.result)
+                    : reject(new Error('图片转换结果无效'));
+                reader.onerror = () => reject(reader.error || new Error('图片转换失败'));
+                reader.onabort = () => reject(new Error('图片转换已中止'));
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        async function buildEmbeddedLaserGalleryItems(items, downloadedBlobs) {
+            const dataUrlCache = new Map();
+            const getDataUrl = url => {
+                if (!url || !downloadedBlobs.has(url)) return Promise.resolve(null);
+                if (!dataUrlCache.has(url)) {
+                    dataUrlCache.set(url, blobToDataUrl(downloadedBlobs.get(url)).catch(error => {
+                        console.warn(`镭射图资源嵌入失败：${url}`, error);
+                        return null;
+                    }));
+                }
+                return dataUrlCache.get(url);
+            };
+
+            const embeddedItems = await Promise.all(items.map(async item => {
+                const [image, mask] = await Promise.all([
+                    getDataUrl(item.imageUrl),
+                    getDataUrl(item.controlUrl)
+                ]);
+                return { title: item.name, image, mask };
+            }));
+            return embeddedItems.filter(item => item.image && item.mask);
+        }
+
         function buildLaserGalleryHtml(items) {
             const galleryData = JSON.stringify(items).replace(/</g, '\\u003c');
             return `<!DOCTYPE html>
@@ -2559,7 +2594,10 @@
         const saveBtn = document.getElementById('save-btn');
         const motionBtn = document.getElementById('motion-btn');
 
-        function fileSrc(path) { return String(path || '').split('/').map(encodeURIComponent).join('/'); }
+        function fileSrc(path) {
+            const source = String(path || '');
+            return /^(?:data|blob):/i.test(source) ? source : source.split('/').map(encodeURIComponent).join('/');
+        }
         function mod(value, divisor) { return ((value % divisor) + divisor) % divisor; }
         function cleanName(name) { return String(name || '镭射图').replace(/[\\\\/:*?"<>|]/g, '').trim() || '镭射图'; }
         function loadImage(path) {
@@ -2780,7 +2818,7 @@
             downloadBtn.disabled = true;
 
             const zip = new JSZip();
-            const downloadedPaths = new Map();
+            const downloadedBlobs = new Map();
             let completedCount = 0;
             const CONCURRENCY_LIMIT = 2;
             let currentIndex = 0;
@@ -2804,7 +2842,7 @@
                         inferredExt = inferExtFromUrlOrBlob(url, blob);
                         const fileName = `${task.directory}${baseName}${inferredExt}`;
                         zip.file(fileName, blob);
-                        downloadedPaths.set(url, fileName);
+                        downloadedBlobs.set(url, blob);
                     } catch (error) {
                         zip.file(
                             `${task.directory}${baseName}_下载失败记录_${index + 1}.txt`,
@@ -2819,13 +2857,8 @@
 
             try {
                 await Promise.all(Array.from({ length: Math.min(CONCURRENCY_LIMIT, downloadTasks.length) }, () => downloadWorker()));
-                const laserGalleryItems = targetLaserPairs
-                    .map(item => ({
-                        title: item.name,
-                        image: downloadedPaths.get(item.imageUrl),
-                        mask: downloadedPaths.get(item.controlUrl)
-                    }))
-                    .filter(item => item.image && item.mask);
+                progressText.innerText = '正在生成不依赖外部图片的镭射图展示页面...';
+                const laserGalleryItems = await buildEmbeddedLaserGalleryItems(targetLaserPairs, downloadedBlobs);
                 if (laserGalleryItems.length > 0) {
                     zip.file('镭射图展示.html', buildLaserGalleryHtml(laserGalleryItems));
                 }
