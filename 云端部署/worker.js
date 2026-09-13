@@ -4,7 +4,9 @@
 // 虽然代码这里配置全局变量也能正常运行，但是强烈建议按照下面的方式配置！
 // 在 Cloudflare Worker 面板 -> Settings -> Variables and Secrets 中配置以下变量：
 // 环境变量名：JWT_SECRET, BASIC_USER, BASIC_PASS
-const DEFAULT_SECRET_KEY = "注意：请自行设置密钥内容，长度任意！";
+// 未配置 JWT_SECRET 时，为当前 Worker 实例生成随机 UUID 作为临时签名密钥。
+// 注意：实例重启/切换后 UUID 会变化，之前签发的 Token 将失效；长期部署建议配置 JWT_SECRET。
+const FALLBACK_SECRET_KEY = crypto.randomUUID();
 const DEFAULT_USERNAME = ""; // 留空表示不开启 Basic Auth
 const DEFAULT_PASSWORD = ""; // 留空表示不开启 Basic Auth
 
@@ -526,7 +528,7 @@ export default {
 		// ==========================================
 		// 初始化环境变量 (环境配置优先于代码全局变量)
 		// ==========================================
-		const SECRET_KEY = env.JWT_SECRET || DEFAULT_SECRET_KEY;
+		const SECRET_KEY = env.JWT_SECRET?.trim() || FALLBACK_SECRET_KEY;
 		const AUTH_USER = env.BASIC_USER || DEFAULT_USERNAME;
 		const AUTH_PASS = env.BASIC_PASS || DEFAULT_PASSWORD;
 
@@ -574,6 +576,24 @@ export default {
 			try {
 				const target = `https://api.bilibili.com/x/vas/dlc_act/act/basic?act_id=${actId}&csrf=`;
 				const data = await fetchBilibiliJson(target, 'basic API');
+				return jsonResponse(data);
+			} catch (err) {
+				return jsonResponse(
+					{ error: err.message },
+					{ status: err.statusCode || 500 }
+				);
+			}
+		}
+
+		if (url.pathname === '/api/suit') {
+			const itemId = url.searchParams.get('item_id');
+			if (!itemId) {
+				return jsonResponse({ error: 'Missing item_id.' }, { status: 400 });
+			}
+
+			try {
+				const target = `https://api.bilibili.com/x/garb/v2/mall/suit/detail?item_id=${encodeURIComponent(itemId)}&part=suit`;
+				const data = await fetchBilibiliJson(target, 'suit API');
 				return jsonResponse(data);
 			} catch (err) {
 				return jsonResponse(
@@ -696,9 +716,13 @@ const htmlContent = `
 <html lang="zh-CN">
 <head>
 	<meta charset="utf-8" />
+        <meta name="referrer" content="no-referrer" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>B站数字周边提取工具</title>
+	<title>B站装扮与数字周边提取工具</title>
 	<style>
+		*, *::before, *::after {
+			box-sizing: border-box;
+		}
 		:root {
 		    --primary: #10b981;
 		    --primary-glow: rgba(16, 185, 129, 0.3);
@@ -728,6 +752,32 @@ const htmlContent = `
 		.media-card { background: #ffffff; border-radius: var(--border-radius); overflow: hidden; display: flex; flex-direction: column; align-items: center; align-self: start; border: 1px solid var(--border-color); transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s; }
 		.media-card:hover { transform: scale(1.02); border-color: var(--primary); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
 		.media-card video, .media-card img { width: 100%; height: 380px; object-fit: cover; background: #f3f4f6; }
+		.media-card > img, .suit-media-card > img { cursor: zoom-in; }
+		.image-modal { position: fixed; inset: 0; z-index: 9999; display: none; align-items: center; justify-content: center; overflow: hidden; user-select: none; opacity: 0; transition: opacity 0.22s ease; }
+		.image-modal.active { display: flex; opacity: 1; }
+		.image-modal-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.88); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); cursor: zoom-out; }
+		.image-modal-content { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; max-width: 92vw; max-height: 90vh; pointer-events: none; }
+		.image-modal img { max-width: 92vw; max-height: 90vh; object-fit: contain; border-radius: 8px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6); pointer-events: auto; cursor: grab; transform-origin: center center; transition: transform 0.08s ease-out; will-change: transform; }
+		.image-modal img:active, .image-modal.is-dragging img { cursor: grabbing; transition: none; }
+		.image-modal-close { position: absolute; top: 18px; right: 18px; z-index: 2; width: 42px; height: 42px; border-radius: 50%; background: rgba(255, 255, 255, 0.16); border: 1px solid rgba(255, 255, 255, 0.28); color: #fff; font-size: 26px; line-height: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s ease; padding: 0; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35); }
+		.image-modal-close:hover { background: rgba(255, 255, 255, 0.32); transform: scale(1.1); }
+		.image-modal-footer { position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; }
+		.image-modal-laser-hint { padding: 6px 16px; border-radius: 999px; background: rgba(15, 23, 42, 0.82); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.25); color: #f8fafc; font-size: 13px; font-weight: bold; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); white-space: nowrap; letter-spacing: 0.2px; pointer-events: none; }
+		.image-modal-toolbar { display: flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; background: rgba(15, 23, 42, 0.78); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.18); box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4); pointer-events: auto; }
+		.image-modal-btn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.15); color: #fff; font-size: 16px; font-weight: bold; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; transition: all 0.2s ease; box-shadow: none; }
+		.image-modal-btn:hover { background: var(--primary); border-color: var(--primary); transform: scale(1.1); }
+		.image-modal-tip { color: #cbd5e1; font-size: 12px; margin-left: 6px; white-space: nowrap; pointer-events: none; }
+		.image-modal-laser-wrapper { position: relative; display: flex; align-items: center; justify-content: center; max-width: 92vw; max-height: 86vh; aspect-ratio: 2 / 3; pointer-events: auto; border-radius: 12px; overflow: hidden; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.15); background: #0f172a; cursor: crosshair; touch-action: none; user-select: none; }
+		.image-modal-laser-wrapper canvas { display: block; width: 100%; height: 100%; max-width: 92vw; max-height: 86vh; aspect-ratio: 2 / 3; object-fit: contain; }
+		@media (max-width: 640px) {
+			.image-modal-tip { display: none; }
+			.image-modal-footer { bottom: 16px; gap: 8px; width: calc(100% - 32px); max-width: 380px; }
+			.image-modal-laser-hint { font-size: 12px; padding: 5px 12px; text-align: center; white-space: normal; }
+			.image-modal-toolbar { padding: 6px 12px; }
+			.image-modal-close { top: 14px; right: 14px; width: 38px; height: 38px; font-size: 22px; }
+			.image-modal-laser-wrapper { max-width: 92vw; max-height: 80vh; }
+			.image-modal-laser-wrapper canvas { max-width: 92vw; max-height: 80vh; }
+		}
 		.laser-preview { width: 100%; background: #0f172a; }
 		.laser-stage { position: relative; width: 100%; aspect-ratio: 2 / 3; overflow: hidden; background: #0f172a; touch-action: none; cursor: crosshair; }
 		.laser-stage canvas { display: block; width: 100%; height: 100%; }
@@ -736,7 +786,7 @@ const htmlContent = `
 		.laser-status button, .media-retry button { padding: 8px 14px; box-shadow: none; }
 		.media-retry { width: 100%; height: 380px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; box-sizing: border-box; color: var(--text-muted); background: #f3f4f6; text-align: center; }
 		.laser-actions { display: flex; gap: 8px; padding: 9px; background: #f8fafc; border-top: 1px solid var(--border-color); }
-		.laser-actions button { flex: 1; padding: 7px 8px; border-radius: 6px; font-size: 12px; box-shadow: none; }
+		.laser-actions button { flex: 1; padding: 8px 10px; border-radius: 6px; font-size: 13px; font-weight: 500; box-shadow: none; }
 		.laser-actions .secondary { color: var(--text-main); background: #e2e8f0; }
 		.laser-actions .secondary:hover { background: #cbd5e1; }
 		 .media-card video:fullscreen { object-fit: contain; background: #000; }
@@ -752,32 +802,221 @@ const htmlContent = `
 		.result-hints { color: var(--text-muted); font-size: 15px; font-weight: bold; line-height: 1.45; text-align: left; }
 		.result-hints span { display: block; }
 		.result-hints span + span { margin-top: 2px; }
-		@media (max-width: 640px) {
-			#result-title { align-items: flex-start; flex-direction: column; gap: 12px; }
-			.result-title-area { align-items: flex-start; margin-left: 0; }
-		}
 		#lottery-selection-panel { display:none; margin-bottom:24px; border:1px solid var(--primary); border-radius:var(--border-radius); padding:20px; background:linear-gradient(135deg, #f0fdf4, #ecfdf5); }
 		#lottery-buttons { display:flex; gap:12px; flex-wrap:wrap; margin-top:14px; }
 		#lottery-buttons button { background:linear-gradient(135deg, #10b981, #059669); padding:12px 22px; border-radius:10px; font-size:14px; min-width:120px; }
 		#lottery-buttons button:hover { background:linear-gradient(135deg, #059669, #047857); }
 		#lottery-buttons button.recommended { box-shadow: 0 0 0 2px #fbbf24, 0 4px 16px rgba(251,191,36,0.35); position:relative; }
+		.header-actions { display:flex; align-items:center; gap:12px; }
+		.api-select { min-height:36px; padding:0 15px 0 12px; border:2px solid var(--border-color); border-radius:999px; color:var(--text-main); background:#fff; font:inherit; font-size:13px; font-weight:bold; cursor:pointer; }
+		.mode-switch { display:inline-flex; padding:3px; border:1px solid var(--border-color); border-radius:999px; background:#f1f5f9; box-shadow:inset 0 1px 2px rgba(15,23,42,.06); }
+		.mode-switch button { padding:6px 13px; border-radius:999px; color:var(--text-muted); background:transparent; box-shadow:none; font-size:13px; }
+		.mode-switch button:hover { color:var(--text-main); background:#e2e8f0; transform:none; }
+		.mode-switch button.active { color:#fff; background:var(--primary); box-shadow:0 3px 9px var(--primary-glow); }
+		.result-content[hidden] { display:none !important; }
+		#suit-resources-grid { display:flex; flex-direction:column; gap:18px; margin-top:20px; }
+		.category-section { display:flex; align-items:stretch; gap:16px; padding:16px; border:1px solid var(--border-color); border-radius:var(--border-radius); background:#fff; }
+		.category-title { flex:0 0 128px; display:flex; align-items:center; justify-content:center; align-content:center; flex-wrap:wrap; gap:8px; padding-right:14px; border-right:2px solid var(--primary); color:var(--primary); font-size:1.05em; font-weight:bold; text-align:center; }
+		.count-badge { padding:2px 8px; border-radius:10px; color:#fff; background:var(--primary); font-size:12px; }
+		.category-media-grid { flex:1; min-width:0; display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:16px; }
+		.suit-media-card img, .suit-media-card video { width:100%; height:280px; padding:8px; box-sizing:border-box; object-fit:contain; background:#f3f4f6; }
+		.suit-media-card video { padding:0; }
+		.suit-media-card .media-retry { height:280px; }
+
+		@media (max-width: 640px) {
+			body {
+				padding: 12px;
+				justify-content: flex-start;
+			}
+
+			.panel {
+				padding: 18px 14px;
+				margin-bottom: 16px;
+				border-radius: 10px;
+			}
+
+			h1 {
+				flex-direction: column;
+				align-items: stretch;
+				gap: 12px;
+				margin-bottom: 14px;
+			}
+
+			#page-title,
+			h1 > span:first-child {
+				font-size: 1.25rem;
+				line-height: 1.35;
+				word-break: break-word;
+			}
+
+			.header-actions {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				flex-wrap: wrap;
+				gap: 8px 10px;
+				width: 100%;
+			}
+
+			.api-select {
+				flex: 1 1 auto;
+				min-width: 125px;
+				max-width: 100%;
+				font-size: 12px;
+				padding: 0 10px;
+			}
+
+			.mode-switch {
+				flex-shrink: 0;
+			}
+
+			.mode-switch button {
+				padding: 5px 11px;
+				font-size: 12px;
+			}
+
+			.github-icon {
+				flex-shrink: 0;
+			}
+
+			.step-title {
+				font-size: 1rem;
+			}
+
+			.step-container > div[style*="text-align: right"] button,
+			#fetch-btn {
+				width: 100%;
+				padding: 11px 16px;
+				font-size: 15px;
+				box-sizing: border-box;
+			}
+
+			#lottery-buttons {
+				gap: 8px;
+			}
+
+			#lottery-buttons button {
+				flex: 1 1 calc(50% - 8px);
+				min-width: 120px;
+				padding: 10px 12px;
+				font-size: 13px;
+			}
+
+			#result-title {
+				align-items: stretch;
+				flex-direction: column;
+				gap: 12px;
+			}
+
+			.result-title-area {
+				align-items: flex-start;
+				margin-left: 0;
+			}
+
+			#result-name {
+				font-size: 1.15rem;
+				line-height: 1.35;
+				word-break: break-word;
+			}
+
+			.result-hints {
+				font-size: 13px;
+			}
+
+			#download-btn {
+				width: 100%;
+				padding: 12px 16px;
+				box-sizing: border-box;
+			}
+
+			#videos-grid {
+				grid-template-columns: 1fr;
+				gap: 14px;
+			}
+
+			.media-card video,
+			.media-card img,
+			.media-retry {
+				height: auto;
+				aspect-ratio: 2 / 3;
+			}
+
+			.laser-actions {
+				gap: 8px;
+				padding: 10px;
+			}
+
+			.laser-actions button {
+				padding: 9px 8px;
+				font-size: 13.5px;
+				font-weight: bold;
+			}
+
+			.category-section {
+				flex-direction: column;
+				padding: 12px;
+				gap: 12px;
+			}
+
+			.category-title {
+				flex: none;
+				justify-content: flex-start;
+				padding: 0 0 8px;
+				border-right: 0;
+				border-bottom: 2px solid var(--primary);
+				text-align: left;
+				font-size: 1rem;
+			}
+
+			.category-media-grid {
+				grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+				gap: 10px;
+			}
+
+			.suit-media-card img,
+			.suit-media-card video {
+				height: 180px;
+				padding: 6px;
+			}
+
+			.suit-media-card video {
+				padding: 0;
+			}
+
+			.suit-media-card .media-retry {
+				height: 180px;
+			}
+		}
 	</style>
 </head>
 <body>
 	<div class="container">
 		<div class="panel">
-			<h1> B站数字周边提取工具 <a href="https://github.com/Iskongkongyo" target="_blank" class="github-icon" title="访问我的 GitHub 主页">
+			<h1>
+				<span>B站装扮与数字周边提取工具</span>
+				<span class="header-actions">
+					<select id="api-provider" class="api-select" aria-label="请求接口">
+						<option value="corsbridge" selected>CorsBridge接口</option>
+						<option value="cloudflare">Cloudflare接口</option>
+					</select>
+					<span class="mode-switch" aria-label="提取模式">
+						<button type="button" class="active" data-mode="auto" onclick="switchMode('auto')">自动</button>
+						<button type="button" data-mode="manual" onclick="switchMode('manual')">手动</button>
+					</span>
+					<a href="https://github.com/Iskongkongyo" target="_blank" rel="noopener noreferrer" class="github-icon" title="访问我的 GitHub 主页">
 					<svg height="28" width="28" viewBox="0 0 16 16" fill="currentColor">
 						<path
 							d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z">
 						</path>
 					</svg>
-				</a>
+					</a>
+				</span>
 			</h1>
+			<p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;"><span id="mode-description">自动模式会通过所选接口代理请求并直接渲染。</span>打开<a id="mall-link" class="mall-link" href="bilibili://forward?-Btarget=https%3A%2F%2Fwww.bilibili.com%2Fh5%2Fmall%2Fhome%3Fnavhide%3D1">个性装扮(点我跳转)</a>，在装扮商城里进入想要下载的个性装扮，点击右上角分享获取链接。</p>
 			<div class="step-container">
-				<div class="step-title"><span class="step-badge">1</span> 获取链接</div>
-				<p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;"> 用B站移动端APP打开 <a href="bilibili://forward?-Btarget=https%3A%2F%2Fwww.bilibili.com%2Fh5%2Fmall%2Fhome%3Fnavhide%3D1">个性装扮(点我即达)</a>， 进入想要下载的数字周边，点击右上角分享获取分享链接和文本。 </p>
-				<textarea id="filepath" rows="4" placeholder="在此处粘贴分享URL或文本，例如：https://www.bilibili.com/h5/mall/... 或 2026DLCSHARE$xxxxxx$ ..."></textarea>
+				<div class="step-title"><span class="step-badge">1</span> 粘贴商品链接</div>
+				<p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">支持个性装扮内绝大多数商品的链接；系统会根据链接自动识别类型。</p>
+				<textarea id="source-url" rows="4" placeholder="例如：数字周边活动链接、分享文本和个性装扮链接"></textarea>
 				<div style="margin-top: 10px; text-align: right;">
 					<button id="fetch-btn" onclick="getData()">一键智能解析</button>
 				</div>
@@ -787,43 +1026,12 @@ const htmlContent = `
 				<p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">该活动包含多个数字周边，请选择要提取的：</p>
 				<div id="lottery-buttons"></div>
 			</div>
-			<div id="manual-fallback-panel" class="step-container" style="display:none; border:1px solid var(--border-color); border-radius:12px; padding:16px; background:#fafafa;">
-				<div class="step-title"><span class="step-badge">2</span> 自动失败，切换手动模式</div>
-				<p id="manual-error-tip" style="color:#b91c1c; font-size:0.92em; margin-top:0;"> 自动获取失败，请按下面步骤手动继续。 </p>
-				<div style="margin-bottom:16px;">
-					<div style="font-weight:bold; margin-bottom:8px; color:var(--text-main);">2.1 获取数字周边基础信息</div>
-					<p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;"> 点击按钮打开 basic 接口，复制页面中的完整 JSON，粘贴到下方。 </p>
-					<textarea id="basic-url" rows="2" readonly placeholder="自动失败后会在这里生成 basic 接口地址..."></textarea>
-					<div style="margin-top: 10px; text-align: right; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
-						<button type="button" onclick="copyBasicUrl()">复制基础接口地址</button>
-						<button type="button" onclick="openBasicUrl()">打开基础接口</button>
-					</div>
-					<br/>
-					<textarea id="basic-data" rows="6" placeholder="把基础接口返回的 JSON 粘贴到这里..."></textarea>
-					<div style="margin-top: 10px; text-align: right;">
-						<button type="button" onclick="openDetailFromBasic()">解析基础数据并打开媒体接口</button>
-					</div>
-				</div>
-				<div id="manual-lottery-selection" style="display:none; margin-bottom:16px; padding:14px; border:1px solid var(--primary); border-radius:10px; background:linear-gradient(135deg, #f0fdf4, #ecfdf5);">
-					<div style="font-weight:bold; margin-bottom:8px; color:var(--primary);">⚡ 检测到多个数字周边，请选择要查看的数字周边：</div>
-					<div id="manual-lottery-buttons" style="display:flex; gap:10px; flex-wrap:wrap;"></div>
-				</div>
-				<div>
-					<div style="font-weight:bold; margin-bottom:8px; color:var(--text-main);">2.2 获取媒体数据</div>
-					<p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;"> 打开 detail 接口后，复制页面中的完整 JSON，粘贴到下方并渲染。 </p>
-					<textarea id="detail-url" rows="3" readonly placeholder="解析基础数据后，这里会生成 detail 接口地址..."></textarea>
-					<div style="margin-top: 10px; text-align: right; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
-						<button type="button" onclick="copyDetailUrl()">复制媒体接口地址</button>
-						<button type="button" onclick="openDetailUrl()">打开媒体接口</button>
-					</div>
-				</div>
-			</div>
 			<div class="step-container">
-				<div class="step-title"><span class="step-badge">3</span> 获取媒体数据 / 手动粘贴结果</div>
-				<p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;"> 正常情况下系统会自动完成；如果自动失败，请把手动获取到的 detail JSON 粘贴到这里。 </p>
-				<textarea id="data" rows="6" placeholder="自动成功会自动填入；手动模式下请把 detail JSON 粘贴到这里..."></textarea>
+				<div class="step-title"><span class="step-badge">2</span> 接口数据</div>
+				<p style="color: var(--text-muted); font-size: 0.9em; margin-top: 0;">自动模式会填充并渲染；手动模式请将接口页完整 JSON 粘贴到这里，系统会自动识别资源类型。</p>
+				<textarea id="data" rows="6" placeholder="正常情况下无需手动粘贴..."></textarea>
 				<div style="margin-top: 10px; text-align: right;">
-					<button onclick="getVideos()">渲染视频与图片</button>
+					<button onclick="renderPastedData()">识别并渲染资源</button>
 				</div>
 			</div>
 		</div>
@@ -831,19 +1039,43 @@ const htmlContent = `
 			<h2 id="result-title">
 				<span class="result-title-area">
 					<span id="result-name">提取结果</span>
-					<span class="result-hints">
-						<span>快捷键 S：鼠标位于某个数字周边上时，可单独下载该图片、视频或当前镭射效果。</span>
-						<span>镭射预览仅供参考，实际效果可能与 B 站存在差异。</span>
+					<span id="result-hints" class="result-hints">
+						<span>PC端快捷键 S：鼠标位于任意数字周边上时，可单独下载该图片、视频或当前镭射效果的图片。</span>
+						<span>镭射图等图片均可点击放大查看！！！镭射预览仅供参考，实际效果可能与 B 站存在差异！</span>
 					</span>
 				</span>
-				<button id="download-btn" onclick="downloadFilesAsZip()">打包下载全部</button>
+				<button id="download-btn" onclick="downloadCurrentResult()">打包下载全部</button>
 			</h2>
 			<div id="progress-container" class="progress-wrapper"><progress id="download-progress" max="100" value="0"></progress>
 				<div id="progressText">准备下载...</div>
 			</div>
-			<div id="videos-grid"></div>
+			<div id="videos-grid" class="result-content"></div>
+			<div id="suit-resources-grid" class="result-content" hidden></div>
 		</div>
 	</div>
+
+	<div id="image-modal" class="image-modal" aria-hidden="true">
+		<div class="image-modal-backdrop" onclick="closeImageModal()"></div>
+		<div class="image-modal-content">
+			<img id="image-modal-img" alt="放大预览" draggable="false">
+			<div id="image-modal-laser-wrapper" class="image-modal-laser-wrapper" style="display: none;">
+				<canvas id="image-modal-laser-canvas"></canvas>
+			</div>
+		</div>
+		<div class="image-modal-footer">
+			<div id="modal-laser-hint" class="image-modal-laser-hint" style="display: none;">✦ 动态镭射全屏预览（移动或晃动体验光效）</div>
+			<div class="image-modal-toolbar">
+				<button type="button" id="modal-zoom-in-btn" class="image-modal-btn" onclick="zoomImageModal(1.25)" title="放大">+</button>
+				<button type="button" id="modal-zoom-out-btn" class="image-modal-btn" onclick="zoomImageModal(0.8)" title="缩小">−</button>
+				<button type="button" id="modal-reset-btn" class="image-modal-btn" onclick="resetImageModalZoom()" title="重置">↺</button>
+				<button type="button" id="modal-laser-toggle-btn" class="image-modal-btn" style="display: none; width: auto; padding: 0 14px; border-radius: 999px; font-size: 13.5px;" onclick="toggleModalLaser()">关闭镭射</button>
+				<button type="button" id="modal-laser-save-btn" class="image-modal-btn" style="display: none; width: auto; padding: 0 14px; border-radius: 999px; font-size: 13.5px;" onclick="saveModalLaser()">保存效果</button>
+				<span id="modal-tip-text" class="image-modal-tip">滚轮缩放 / 拖拽平移</span>
+			</div>
+		</div>
+		<button type="button" class="image-modal-close" onclick="closeImageModal()" aria-label="关闭预览" title="关闭 (ESC)">×</button>
+	</div>
+
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 	<script>
@@ -869,6 +1101,422 @@ const htmlContent = `
 		let laserMotionEnabled = false;
 		let laserMotionListening = false;
 		let laserMotionBaseline = null;
+		let activeMode = 'auto';
+		let activeResult = null;
+		let suitResources = [];
+		let suitZipName = '装扮资源';
+
+		function isMobileOrTablet() {
+			const ua = navigator.userAgent || navigator.vendor || window.opera || '';
+			const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|Tablet|tablet|iPad|PlayBook|Silk|(windows phone)/i;
+			const isIPadOS = /Macintosh/i.test(ua) && navigator.maxTouchPoints && navigator.maxTouchPoints > 1;
+			const isSmallScreenTouch = (('ontouchstart' in window) || navigator.maxTouchPoints > 0) && window.matchMedia('(max-width: 1024px)').matches;
+			return mobileRegex.test(ua) || isIPadOS || isSmallScreenTouch;
+		}
+
+		function initMallLink() {
+			const mallLinks = document.querySelectorAll('#mall-link, .mall-link');
+			if (!mallLinks.length) return;
+			const isMobile = isMobileOrTablet();
+			const href = isMobile
+				? 'bilibili://forward?-Btarget=https%3A%2F%2Fwww.bilibili.com%2Fh5%2Fmall%2Fhome%3Fnavhide%3D1'
+				: 'https://www.bilibili.com/h5/mall/home?navhide=1&from=icon.shop&f_source=shop';
+			const text = '个性装扮(点我跳转)';
+
+			mallLinks.forEach(link => {
+				link.href = href;
+				link.innerText = text;
+				if (isMobile) {
+					link.removeAttribute('target');
+					link.removeAttribute('rel');
+				} else {
+					link.target = '_blank';
+					link.rel = 'noopener noreferrer';
+				}
+			});
+		}
+
+		initMallLink();
+		if (document.readyState === 'loading') {
+			document.addEventListener('DOMContentLoaded', initMallLink);
+		}
+
+		function switchMode(mode) {
+			if (!['auto', 'manual'].includes(mode) || mode === activeMode) return;
+			if (isDownloading) { alert('当前有正在进行的下载任务，请完成后再切换模式。'); return; }
+			activeMode = mode;
+			const automatic = mode === 'auto';
+			document.getElementById('mode-description').innerText = automatic
+				? '自动模式会通过所选接口请求并直接渲染。'
+				: '手动模式不会请求代理。点击按钮后会直接打开对应 B 站接口，请复制完整 JSON 再粘贴到下方渲染。';
+			document.getElementById('fetch-btn').innerText = automatic ? '一键智能解析' : '打开对应接口';
+			document.querySelectorAll('[data-mode]').forEach(button => button.classList.toggle('active', button.dataset.mode === mode));
+		}
+
+		function getSelectedApiProvider() {
+			return document.getElementById('api-provider').value;
+		}
+
+		function downloadCurrentResult() {
+			return activeResult === 'suit' ? downloadSuitFilesAsZip() : downloadFilesAsZip();
+		}
+
+		const modalState = {
+			scale: 1,
+			translateX: 0,
+			translateY: 0,
+			isDragging: false,
+			startX: 0,
+			startY: 0,
+			initialTranslateX: 0,
+			initialTranslateY: 0,
+			initialDistance: 0,
+			initialScale: 1
+		};
+
+		function applyModalTransform(smooth = true) {
+			const modalImg = document.getElementById('image-modal-img');
+			const laserWrapper = document.getElementById('image-modal-laser-wrapper');
+			const targetEl = modalLaserRenderer ? laserWrapper : modalImg;
+			if (!targetEl) return;
+			targetEl.style.transition = smooth ? 'transform 0.08s ease-out' : 'none';
+			targetEl.style.transform = 'translate(' + modalState.translateX + 'px, ' + modalState.translateY + 'px) scale(' + modalState.scale + ')';
+			if (!modalLaserRenderer) {
+				targetEl.style.cursor = modalState.scale > 1 ? 'grab' : 'zoom-in';
+			}
+		}
+
+		function zoomImageModal(factor) {
+			let newScale = modalState.scale * factor;
+			newScale = Math.max(0.5, Math.min(8, newScale));
+			if (Math.abs(newScale - 1) < 0.05 && factor < 1.05 && factor > 0.95) {
+				newScale = 1;
+			}
+			modalState.scale = newScale;
+			if (newScale <= 1) {
+				modalState.translateX = 0;
+				modalState.translateY = 0;
+			}
+			applyModalTransform(true);
+		}
+
+		function resetImageModalZoom() {
+			modalState.scale = 1;
+			modalState.translateX = 0;
+			modalState.translateY = 0;
+			applyModalTransform(true);
+		}
+
+		let modalLaserRenderer = null;
+
+		function openLaserModal(sourceRenderer, titleText = '镭射款') {
+			const modal = document.getElementById('image-modal');
+			const modalImg = document.getElementById('image-modal-img');
+			const laserWrapper = document.getElementById('image-modal-laser-wrapper');
+			const laserCanvas = document.getElementById('image-modal-laser-canvas');
+			const laserHint = document.getElementById('modal-laser-hint');
+			const tipText = document.getElementById('modal-tip-text');
+			const zoomInBtn = document.getElementById('modal-zoom-in-btn');
+			const zoomOutBtn = document.getElementById('modal-zoom-out-btn');
+			const resetBtn = document.getElementById('modal-reset-btn');
+			const toggleBtn = document.getElementById('modal-laser-toggle-btn');
+			const saveBtn = document.getElementById('modal-laser-save-btn');
+
+			if (!modal || !laserWrapper || !laserCanvas || !sourceRenderer?.ready) return;
+
+			if (modalLaserRenderer) {
+				laserRenderers.delete(modalLaserRenderer);
+				modalLaserRenderer = null;
+			}
+
+			modalImg.style.display = 'none';
+			laserWrapper.style.display = 'flex';
+
+			if (laserHint) laserHint.style.display = 'block';
+			if (zoomInBtn) zoomInBtn.style.display = 'inline-flex';
+			if (zoomOutBtn) zoomOutBtn.style.display = 'inline-flex';
+			if (resetBtn) resetBtn.style.display = 'inline-flex';
+			if (toggleBtn) {
+				toggleBtn.style.display = 'inline-flex';
+				toggleBtn.innerText = sourceRenderer.enabled ? '关闭镭射' : '开启镭射';
+			}
+			if (saveBtn) saveBtn.style.display = 'inline-flex';
+			if (tipText) tipText.style.display = 'none';
+
+			const width = Math.min(1080, sourceRenderer.canvas.width || 828);
+			const height = Math.round(width * (sourceRenderer.canvas.height || 1242) / (sourceRenderer.canvas.width || 828));
+			laserCanvas.width = width;
+			laserCanvas.height = height;
+
+			modalLaserRenderer = {
+				stage: laserWrapper,
+				canvas: laserCanvas,
+				context: laserCanvas.getContext('2d'),
+				maskCanvas: sourceRenderer.maskCanvas,
+				effectCanvas: sourceRenderer.effectCanvas,
+				baseImage: sourceRenderer.baseImage,
+				config: sourceRenderer.config,
+				pointerX: sourceRenderer.pointerX,
+				pointerY: sourceRenderer.pointerY,
+				enabled: sourceRenderer.enabled,
+				visible: true,
+				ready: true,
+				titleText: titleText,
+				sourceRenderer: sourceRenderer
+			};
+			laserRenderers.add(modalLaserRenderer);
+
+			resetImageModalZoom();
+			modal.classList.add('active');
+			modal.setAttribute('aria-hidden', 'false');
+			document.body.style.overflow = 'hidden';
+
+			drawLaserFrame(modalLaserRenderer, performance.now());
+			startLaserAnimation();
+		}
+
+		function toggleModalLaser() {
+			if (!modalLaserRenderer) return;
+			modalLaserRenderer.enabled = !modalLaserRenderer.enabled;
+			if (modalLaserRenderer.sourceRenderer) {
+				modalLaserRenderer.sourceRenderer.enabled = modalLaserRenderer.enabled;
+			}
+			const btn = document.getElementById('modal-laser-toggle-btn');
+			if (btn) btn.innerText = modalLaserRenderer.enabled ? '关闭镭射' : '开启镭射';
+			drawLaserFrame(modalLaserRenderer, performance.now());
+		}
+
+		async function saveModalLaser() {
+			if (!modalLaserRenderer) return;
+			try {
+				await saveLaserPreview(modalLaserRenderer, modalLaserRenderer.titleText);
+			} catch (err) {
+				alert('保存失败：' + err.message);
+			}
+		}
+
+		function openImageModal(src, alt = '放大预览') {
+			const modal = document.getElementById('image-modal');
+			const modalImg = document.getElementById('image-modal-img');
+			const laserWrapper = document.getElementById('image-modal-laser-wrapper');
+			const laserHint = document.getElementById('modal-laser-hint');
+			const tipText = document.getElementById('modal-tip-text');
+			const zoomInBtn = document.getElementById('modal-zoom-in-btn');
+			const zoomOutBtn = document.getElementById('modal-zoom-out-btn');
+			const resetBtn = document.getElementById('modal-reset-btn');
+			const toggleBtn = document.getElementById('modal-laser-toggle-btn');
+			const saveBtn = document.getElementById('modal-laser-save-btn');
+
+			if (!modal || !modalImg || !src) return;
+
+			if (modalLaserRenderer) {
+				laserRenderers.delete(modalLaserRenderer);
+				modalLaserRenderer = null;
+			}
+
+			modalImg.style.display = 'block';
+			if (laserWrapper) laserWrapper.style.display = 'none';
+			if (laserHint) laserHint.style.display = 'none';
+
+			if (zoomInBtn) zoomInBtn.style.display = 'inline-flex';
+			if (zoomOutBtn) zoomOutBtn.style.display = 'inline-flex';
+			if (resetBtn) resetBtn.style.display = 'inline-flex';
+			if (toggleBtn) toggleBtn.style.display = 'none';
+			if (saveBtn) saveBtn.style.display = 'none';
+			if (tipText) {
+				tipText.style.display = '';
+				tipText.innerText = '滚轮缩放 / 拖拽平移';
+			}
+
+			modalImg.src = src;
+			modalImg.alt = alt || '放大预览';
+			resetImageModalZoom();
+			modal.classList.add('active');
+			modal.setAttribute('aria-hidden', 'false');
+			document.body.style.overflow = 'hidden';
+		}
+
+		function closeImageModal() {
+			const modal = document.getElementById('image-modal');
+			if (!modal || !modal.classList.contains('active')) return;
+
+			if (modalLaserRenderer) {
+				laserRenderers.delete(modalLaserRenderer);
+				modalLaserRenderer = null;
+			}
+
+			const laserHint = document.getElementById('modal-laser-hint');
+			if (laserHint) laserHint.style.display = 'none';
+
+			modal.classList.remove('active');
+			modal.setAttribute('aria-hidden', 'true');
+			document.body.style.overflow = '';
+			resetImageModalZoom();
+		}
+
+		const imageModalEl = document.getElementById('image-modal');
+		const imageModalImgEl = document.getElementById('image-modal-img');
+		const imageModalLaserWrapperEl = document.getElementById('image-modal-laser-wrapper');
+
+		const startModalDrag = (clientX, clientY) => {
+			modalState.isDragging = true;
+			modalState.startX = clientX;
+			modalState.startY = clientY;
+			modalState.initialTranslateX = modalState.translateX;
+			modalState.initialTranslateY = modalState.translateY;
+			imageModalEl?.classList.add('is-dragging');
+		};
+
+		if (imageModalEl) {
+			imageModalEl.addEventListener('wheel', event => {
+				event.preventDefault();
+				const zoomFactor = event.deltaY < 0 ? 1.15 : 0.87;
+				zoomImageModal(zoomFactor);
+			}, { passive: false });
+		}
+
+		if (imageModalImgEl) {
+			imageModalImgEl.addEventListener('mousedown', event => {
+				if (event.button !== 0) return;
+				event.preventDefault();
+				startModalDrag(event.clientX, event.clientY);
+			});
+
+			imageModalImgEl.addEventListener('dblclick', event => {
+				event.preventDefault();
+				if (modalState.scale > 1.05) {
+					resetImageModalZoom();
+				} else {
+					modalState.scale = 2.5;
+					applyModalTransform(true);
+				}
+			});
+		}
+
+		if (imageModalLaserWrapperEl) {
+			const updateModalLaserPointer = (clientX, clientY) => {
+				if (!modalLaserRenderer) return;
+				const rect = imageModalLaserWrapperEl.getBoundingClientRect();
+				modalLaserRenderer.pointerX = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+				modalLaserRenderer.pointerY = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+				if (modalLaserRenderer.sourceRenderer) {
+					modalLaserRenderer.sourceRenderer.pointerX = modalLaserRenderer.pointerX;
+					modalLaserRenderer.sourceRenderer.pointerY = modalLaserRenderer.pointerY;
+				}
+				drawLaserFrame(modalLaserRenderer, performance.now());
+			};
+
+			imageModalLaserWrapperEl.addEventListener('pointermove', event => {
+				updateModalLaserPointer(event.clientX, event.clientY);
+			});
+
+			imageModalLaserWrapperEl.addEventListener('mousedown', event => {
+				if (event.button !== 0) return;
+				if (modalState.scale > 1) {
+					event.preventDefault();
+					startModalDrag(event.clientX, event.clientY);
+				}
+			});
+
+			imageModalLaserWrapperEl.addEventListener('dblclick', event => {
+				event.preventDefault();
+				if (modalState.scale > 1.05) {
+					resetImageModalZoom();
+				} else {
+					modalState.scale = 2.5;
+					applyModalTransform(true);
+				}
+			});
+		}
+
+		window.addEventListener('mousemove', event => {
+			if (!modalState.isDragging) return;
+			event.preventDefault();
+			const deltaX = event.clientX - modalState.startX;
+			const deltaY = event.clientY - modalState.startY;
+			modalState.translateX = modalState.initialTranslateX + deltaX;
+			modalState.translateY = modalState.initialTranslateY + deltaY;
+			applyModalTransform(false);
+		});
+
+		window.addEventListener('mouseup', () => {
+			if (modalState.isDragging) {
+				modalState.isDragging = false;
+				imageModalEl?.classList.remove('is-dragging');
+				applyModalTransform(true);
+			}
+		});
+
+		if (imageModalEl) {
+			imageModalEl.addEventListener('touchstart', event => {
+				if (event.touches.length === 1 && modalState.scale > 1) {
+					const touch = event.touches[0];
+					startModalDrag(touch.clientX, touch.clientY);
+				} else if (event.touches.length === 2) {
+					modalState.isDragging = false;
+					const touch1 = event.touches[0];
+					const touch2 = event.touches[1];
+					modalState.initialDistance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+					modalState.initialScale = modalState.scale;
+				}
+			}, { passive: true });
+
+			imageModalEl.addEventListener('touchmove', event => {
+				if (event.touches.length === 1 && modalLaserRenderer && imageModalLaserWrapperEl) {
+					const rect = imageModalLaserWrapperEl.getBoundingClientRect();
+					modalLaserRenderer.pointerX = Math.max(0, Math.min(1, (event.touches[0].clientX - rect.left) / rect.width));
+					modalLaserRenderer.pointerY = Math.max(0, Math.min(1, (event.touches[0].clientY - rect.top) / rect.height));
+					if (modalLaserRenderer.sourceRenderer) {
+						modalLaserRenderer.sourceRenderer.pointerX = modalLaserRenderer.pointerX;
+						modalLaserRenderer.sourceRenderer.pointerY = modalLaserRenderer.pointerY;
+					}
+					drawLaserFrame(modalLaserRenderer, performance.now());
+				}
+
+				if (event.touches.length === 1 && modalState.isDragging && modalState.scale > 1) {
+					event.preventDefault();
+					const touch = event.touches[0];
+					const deltaX = touch.clientX - modalState.startX;
+					const deltaY = touch.clientY - modalState.startY;
+					modalState.translateX = modalState.initialTranslateX + deltaX;
+					modalState.translateY = modalState.initialTranslateY + deltaY;
+					applyModalTransform(false);
+				} else if (event.touches.length === 2 && modalState.initialDistance > 0) {
+					event.preventDefault();
+					const touch1 = event.touches[0];
+					const touch2 = event.touches[1];
+					const currentDistance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+					const factor = currentDistance / modalState.initialDistance;
+					modalState.scale = Math.max(0.5, Math.min(8, modalState.initialScale * factor));
+					applyModalTransform(false);
+				}
+			}, { passive: false });
+
+			imageModalEl.addEventListener('touchend', event => {
+				if (event.touches.length === 0) {
+					modalState.isDragging = false;
+					modalState.initialDistance = 0;
+					if (modalState.scale < 1) {
+						resetImageModalZoom();
+					} else {
+						applyModalTransform(true);
+					}
+				}
+			}, { passive: true });
+		}
+
+		document.addEventListener('click', event => {
+			const target = event.target;
+			if (target instanceof HTMLImageElement && target.closest('.media-card') && !target.closest('.laser-stage') && !target.closest('.image-modal')) {
+				openImageModal(target.src, target.alt);
+			}
+		});
+
+		document.addEventListener('keydown', event => {
+			if (event.key === 'Escape') {
+				closeImageModal();
+			}
+		});
 
 		function getScreenOrientationAngle() {
 		    const angle = screen.orientation?.angle ?? window.orientation ?? 0;
@@ -951,6 +1599,10 @@ const htmlContent = `
 		    button.addEventListener('click', enableLaserMotion);
 		}
 		function attachMediaRetry(media, url, mediaLabel) {
+                    // B站部分图片和视频会检查 Referer，预览时统一禁止发送。
+	            media.referrerPolicy = 'no-referrer';
+	            media.setAttribute('referrerpolicy', 'no-referrer');
+
 		    let retryPlaceholder = null;
 		    const showRetry = () => {
 		        if (retryPlaceholder) return;
@@ -1088,6 +1740,40 @@ const htmlContent = `
 		            await new Promise(resolve => setTimeout(resolve, 1000));
 		        }
 		    }
+		}
+
+		async function fetchJsonByProvider(targetUrl, workerUrl) {
+			const requestUrl = getSelectedApiProvider() === 'cloudflare'
+				? workerUrl
+				: 'https://api.cors.syrins.tech/?url=' + encodeURIComponent(targetUrl);
+			const response = await fetchWithRetry(requestUrl, {}, 3, 15000);
+			try {
+				return await response.json();
+			} catch (error) {
+				throw new Error('请求接口返回的不是有效 JSON：' + error.message);
+			}
+		}
+
+		function getSourceInput() {
+			return document.getElementById('source-url').value.trim();
+		}
+
+		function detectResourceTypeFromUrl(sourceUrl) {
+			const rawUrl = String(sourceUrl || '');
+			let normalized = rawUrl;
+			try { normalized = decodeURIComponent(rawUrl); } catch (error) { console.warn('链接解码失败，将按原链接识别：', error); }
+			normalized = normalized.toLowerCase();
+			const activityId = getParam(rawUrl, 'act_id') || getParam(rawUrl, 'id');
+			const linkType = String(getParam(rawUrl, 'type') || '').toLowerCase();
+			if (normalized.includes('/suit/detail') || normalized.includes('/garb/v2/mall/suit/detail')) return 'suit';
+			if (getParam(rawUrl, 'act_id') || getParam(rawUrl, 'lottery_id') || normalized.includes('/vas/dlc_act/') || (activityId && linkType === 'dlc') || (getParam(rawUrl, 'id') && normalized.includes('/h5/mall/'))) return 'digital';
+			throw new Error('未识别出链接类型。请粘贴数字周边活动分享链接/文本，或包含 suit/detail 的装扮商品链接。');
+		}
+
+		function buildSuitApiUrl(sourceUrl) {
+			const itemId = getParam(sourceUrl, 'id') || getParam(sourceUrl, 'item_id');
+			if (!itemId) throw new Error('装扮链接中未找到 id 或 item_id 参数！');
+			return 'https://api.bilibili.com/x/garb/v2/mall/suit/detail?item_id=' + encodeURIComponent(itemId) + '&part=suit';
 		}
 		
 		function normalizeFilepath(filepath, lotteryId) {
@@ -1275,135 +1961,105 @@ const htmlContent = `
 		        btn.disabled = false;
 		    }
 		}
-		async function fetchAndRenderDetail(filepath, lotteryId) {
-		    const finalPath = normalizeFilepath(filepath, lotteryId);
-		    const detailRes = await fetch('/api/detail', {
-		        method: 'POST',
-		        headers: { 'Content-Type': 'application/json' },
-		        body: JSON.stringify({ input: finalPath })
-		    });
-		    const detailText = await detailRes.text();
-		    let detailData;
-		    try {
-		        detailData = JSON.parse(detailText);
-		    } catch (e) {
-		        throw new Error('detail 接口返回非 JSON：HTTP'+ detailRes.status + '，响应前300字：'+ detailText.slice(0, 300));
-		    }
-		    if (!detailRes.ok) {
-		        throw new Error(detailData?.error || '详情接口请求失败!');
-		    }
-		    document.getElementById('data').value = JSON.stringify(detailData, null, 2);
-		    getVideos();
+		function buildDigitalDetailApiUrl(actId, lotteryId) {
+			return 'https://api.bilibili.com/x/vas/dlc_act/lottery_home_detail?act_id=' + encodeURIComponent(actId) + '&appkey=1d8b6e7d45233436&disable_rcmd=0&sign=341070dd7b86b7ce7c3655972d9824a7&lottery_id=' + encodeURIComponent(lotteryId) + '&ts=' + Math.floor(Date.now() / 1000) + '&mobi_app=android&platform=android';
 		}
-		function showLotterySelection(actId, lotteryList, tabLotteryId) {
-		    const panel = document.getElementById('lottery-selection-panel');
-		    const container = document.getElementById('lottery-buttons');
-		    container.innerHTML = '';
-		    lotteryList.forEach(function(lottery) {
-		        const b = document.createElement('button');
-		        b.innerText = lottery.lottery_name || ('周边 ' + lottery.lottery_id);
-		        if (String(lottery.lottery_id) === String(tabLotteryId)) {
-		            b.classList.add('recommended');
-		            b.innerText += ' ★';
-		        }
-		        b.onclick = function() { selectLottery(actId, lottery.lottery_id); };
-		        container.appendChild(b);
-		    });
-		    panel.style.display = 'block';
-		    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		function buildDigitalBasicApiUrl(actId) {
+			return 'https://api.bilibili.com/x/vas/dlc_act/act/basic?act_id=' + encodeURIComponent(actId) + '&csrf=';
 		}
-		async function selectLottery(actId, lotteryId) {
-		    const btn = document.getElementById('fetch-btn');
-		    const originalBtnText = btn.innerText;
-		    btn.innerText = '正在获取数据...';
-		    btn.disabled = true;
-		    document.getElementById('lottery-selection-panel').style.display = 'none';
-		    try {
-		        const filepath = document.getElementById('filepath').value.trim();
-		        await fetchAndRenderDetail(filepath, lotteryId);
-		    } catch (err) {
-		        const msg = err?.message || '未知错误';
-		        showManualFallback(msg, document.getElementById('filepath').value.trim());
-		        alert('获取失败：' + msg);
-		    } finally {
-		        btn.innerText = originalBtnText;
-		        btn.disabled = false;
-		    }
+		function getAvailableLotteries(payload) {
+			const lotteryList = Array.isArray(payload?.lottery_list) ? payload.lottery_list : [];
+			return lotteryList.filter(lottery => lottery?.lottery_id != null && String(lottery.lottery_id).trim() !== '');
+		}
+		function openDigitalDetailApi(actId, lotteryId) {
+			const detailUrl = buildDigitalDetailApiUrl(actId, lotteryId);
+			document.getElementById('lottery-selection-panel').style.display = 'none';
+			alert('即将打开所选数字周边的详情接口，请复制完整 JSON 后粘贴到第 2 步渲染。');
+			window.open(detailUrl, '_blank', 'noopener,noreferrer');
+		}
+		function openManualApi(resourceType) {
+			const source = getSourceInput();
+			if (resourceType === 'suit') { window.open(buildSuitApiUrl(source), '_blank', 'noopener,noreferrer'); return; }
+			const actId = getParam(source, 'act_id') || getParam(source, 'id');
+			if (!actId) throw new Error('数字周边链接中未找到 act_id 或 id！');
+			const apiUrl = buildDigitalBasicApiUrl(actId);
+			alert('即将打开数字周边基础接口（链接自带的 lottery_id 不影响选择）。请复制完整 JSON 并粘贴到第 2 步，工具会列出该活动下的全部数字周边。');
+			window.open(apiUrl, '_blank', 'noopener,noreferrer');
+		}
+		function showLotterySelection(actId, lotteryList, tabLotteryId, selectionMode = 'auto') {
+			const panel = document.getElementById('lottery-selection-panel');
+			const container = document.getElementById('lottery-buttons');
+			container.replaceChildren();
+			lotteryList.forEach(function(lottery) {
+				const button = document.createElement('button');
+				button.innerText = lottery.lottery_name || ('周边 ' + lottery.lottery_id);
+				if (String(lottery.lottery_id) === String(tabLotteryId)) { button.classList.add('recommended'); button.innerText += ' ★'; }
+				button.onclick = function() { selectLottery(actId, lottery.lottery_id, selectionMode); };
+				container.appendChild(button);
+			});
+			panel.style.display = 'block';
+			panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		}
+		async function fetchAndRenderDetail(actId, lotteryId) {
+			const targetUrl = buildDigitalDetailApiUrl(actId, lotteryId);
+			const workerUrl = '/api/detail?act_id=' + encodeURIComponent(actId) + '&lottery_id=' + encodeURIComponent(lotteryId);
+			const detailData = await fetchJsonByProvider(targetUrl, workerUrl);
+			if (detailData.code != null && detailData.code !== 0) throw new Error(detailData.message || ('API 返回错误：' + detailData.code));
+			document.getElementById('data').value = JSON.stringify(detailData, null, 2);
+			getVideos();
+		}
+		async function selectLottery(actId, lotteryId, selectionMode = 'auto') {
+			if (selectionMode === 'manual') {
+				openDigitalDetailApi(actId, lotteryId);
+				return;
+			}
+
+			const button = document.getElementById('fetch-btn');
+			button.disabled = true; button.innerText = '正在获取数据...';
+			document.getElementById('lottery-selection-panel').style.display = 'none';
+			try { await fetchAndRenderDetail(actId, lotteryId); }
+			catch (error) { alert('自动获取失败：' + error.message + '。请切换手动模式后重试。'); }
+			finally { button.disabled = false; button.innerText = activeMode === 'auto' ? '一键智能解析' : '打开对应接口'; }
+		}
+		async function getDigitalDataAutomatically(source) {
+			const actId = getParam(source, 'act_id') || getParam(source, 'id');
+			if (!actId) throw new Error('数字周边链接中未找到 act_id 或 id！');
+
+			// 无论分享链接是否自带 lottery_id，都以 basic 接口返回的完整列表为准。
+			const targetUrl = buildDigitalBasicApiUrl(actId);
+			const basicData = await fetchJsonByProvider(targetUrl, '/api/basic?act_id=' + encodeURIComponent(actId));
+			if (basicData.code != null && basicData.code !== 0) throw new Error(basicData.message || ('API 返回错误：' + basicData.code));
+			const payload = basicData?.data || {};
+			const lotteryList = getAvailableLotteries(payload);
+			const tabLotteryId = payload.tab_lottery_id;
+			if (lotteryList.length >= 2) { showLotterySelection(actId, lotteryList, tabLotteryId, 'auto'); return; }
+			const lotteryId = tabLotteryId || lotteryList[0]?.lottery_id;
+			if (!lotteryId) throw new Error('基础接口中未找到有效的 lottery_id！');
+			await fetchAndRenderDetail(actId, lotteryId);
+		}
+		async function getSuitDataAutomatically(source) {
+			const targetUrl = buildSuitApiUrl(source);
+			const itemId = getParam(source, 'id') || getParam(source, 'item_id');
+			const data = await fetchJsonByProvider(targetUrl, '/api/suit?item_id=' + encodeURIComponent(itemId));
+			if (data.code != null && data.code !== 0) throw new Error(data.message || ('API 返回错误：' + data.code));
+			document.getElementById('data').value = JSON.stringify(data, null, 2);
+			parseSuitData();
 		}
 		async function getData() {
-		    const filepath = document.getElementById('filepath').value.trim();
-		    if (!filepath) {
-		alert('输入内容不能为空！');
-		return;
-		    }
-		
-		    const btn = document.getElementById('fetch-btn');
-		    const originalBtnText = btn.innerText;
-		    const manualPanel = document.getElementById('manual-fallback-panel');
-		    const lotteryPanel = document.getElementById('lottery-selection-panel');
-		    const basicDataBox = document.getElementById('basic-data');
-		    const detailUrlBox = document.getElementById('detail-url');
-		
-		    btn.innerText = '正在自动解析...';
-		    btn.disabled = true;
-		
-		    // 每次重新尝试自动解析前，先清空上次状态
-		    manualPanel.style.display = 'none';
-		    lotteryPanel.style.display = 'none';
-		    basicDataBox.value = '';
-		    detailUrlBox.value = '';
-		
-		    try {
-		const id = getParam(filepath, 'act_id') || getParam(filepath, 'id');
-		let lotteryId = getParam(filepath, 'lottery_id');
-		
-		if ((!lotteryId || lotteryId === 'undefined' || lotteryId === 'null') && filepath.startsWith('http')) {
-		    if (!id || id === 'undefined' || id === 'null') {
-		        throw new Error('未找到有效的 id!');
-		    }
-		
-		    const basicRes = await fetch('/api/basic?act_id=' + encodeURIComponent(id));
-		    const basicText = await basicRes.text();
-		
-		    let basicData;
-		    try {
-		        basicData = JSON.parse(basicText);
-		    } catch (e) {
-		        throw new Error('basic 接口返回非 JSON：HTTP'+ basicRes.status + '，响应前300字：'+ basicText.slice(0, 300));
-		    }
-		
-		    if (!basicRes.ok) {
-		        throw new Error(basicData?.error || '基础接口请求失败!');
-		    }
-		
-		    const lotteryList = basicData?.data?.lottery_list || [];
-		    const tabLotteryId = basicData?.data?.tab_lottery_id;
-		
-		    // 多个数字周边 → 展示选择按钮，等待用户点击
-		    if (lotteryList.length >= 2) {
-		        showLotterySelection(id, lotteryList, tabLotteryId);
-		        btn.innerText = originalBtnText;
-		        btn.disabled = false;
-		        return;
-		    }
-		
-		    // 单个周边 → 直接继续
-		    lotteryId = tabLotteryId || lotteryList[0]?.lottery_id;
-		    if (!lotteryId) {
-		        throw new Error('未找到有效的 lottery_id!');
-		    }
-		}
-		
-		await fetchAndRenderDetail(filepath, lotteryId);
-		
-		    } catch (err) {
-		const msg = err?.message || '未知错误';
-		showManualFallback(msg, filepath);
-		alert('自动获取失败：'+ msg + '已自动切换到手动模式，请继续页面中的第 2 步。');
-		    } finally {
-		btn.innerText = originalBtnText;
-		btn.disabled = false;
-		    }
+			const source = getSourceInput();
+			if (!source) { alert('商品链接不能为空！'); return; }
+			const button = document.getElementById('fetch-btn');
+			try {
+				const resourceType = detectResourceTypeFromUrl(source);
+				document.getElementById('lottery-selection-panel').style.display = 'none';
+				if (activeMode === 'manual') { openManualApi(resourceType); return; }
+				button.disabled = true; button.innerText = '正在自动解析...';
+				if (resourceType === 'suit') await getSuitDataAutomatically(source); else await getDigitalDataAutomatically(source);
+			} catch (error) {
+				alert('自动获取失败：' + error.message + '。可切换手动模式直接打开接口。');
+			} finally {
+				button.disabled = false; button.innerText = activeMode === 'auto' ? '一键智能解析' : '打开对应接口';
+			}
 		}
 		function getVideos() {
 		    try {
@@ -1412,8 +2068,12 @@ const htmlContent = `
 		        const jsonData = JSON.parse(data);
 		        const infos = jsonData?.data || {};
 		        zipName = infos.name || '数字周边';
+		        activeResult = 'digital';
+		        document.getElementById('videos-grid').hidden = false;
+		        document.getElementById('suit-resources-grid').hidden = true;
 		        document.getElementById('result-panel').style.display = 'block';
 		        document.getElementById('result-name').innerText = zipName;
+		        document.getElementById('result-hints').innerHTML = '<span>PC端快捷键 S：鼠标位于某个数字周边上时，可单独下载该图片、视频或当前镭射效果的图片。</span><span>镭射图等图片均可点击放大查看！！！镭射预览仅供参考，实际效果可能与 B 站存在差异！</span>';
 		        const itemList = Array.isArray(infos.item_list) ? [...infos.item_list] : [];
 		        const seen = new Set();
 		        function addImageItem(cardName, cardImg) {
@@ -1466,6 +2126,64 @@ const htmlContent = `
 		        alert(\`解析数据出错，请确保输入的是完整的 JSON 格式：\${err.message}\`);
 		    }
 		}
+		function extractSuitResources(data) {
+			const resources = [], seen = new Set();
+			const add = (category, name, url, subDir) => { if (url && !seen.has(url)) { seen.add(url); resources.push({ category, name, url, subDir: subDir || category }); } };
+			const addProperties = (category, item, definitions) => { const p = item?.properties || {}; definitions.forEach(def => add(category, def[0], p[def[1]], def[2])); };
+			add('封面', '商品封面', data.properties?.image_cover, '封面'); add('封面', '分享图', data.properties?.fan_share_image, '封面');
+			(data.suit_items?.card || []).forEach(item => { const p=item.properties||{}, name=item.name||'评论卡片'; add('评论卡片',name,p.image,'评论卡片'); add('评论卡片',name+'_缩略图',p.image_preview_small,'评论卡片'); if(p.fans_image!==p.image)add('评论卡片',name+'_粉丝徽章',p.fans_image,'评论卡片'); });
+			(data.suit_items?.card_bg || []).forEach(item => { const p=item.properties||{}, name=item.name||'卡片背景'; add('卡片背景',name,p.image,'卡片背景'); add('卡片背景',name+'_缩略图',p.image_preview_small,'卡片背景'); });
+			(data.suit_items?.emoji_package || []).forEach(pkg => { const p=pkg.properties||{}; add('表情包','表情包封面',p.image,'表情包'); try { JSON.parse(p.item_emoji_list||'[]').forEach(emoji=>add('表情包',emoji.name||'表情',emoji.image,'表情包')); } catch(error) { console.warn('表情包列表解析失败：',error); } (pkg.items||[]).forEach(emoji=>add('表情包',emoji.name?.replace(/[\[\]]/g,'')||'表情',emoji.properties?.image,'表情包')); });
+			(data.suit_items?.skin || []).forEach(item => addProperties('主题皮肤',item,[['皮肤预览图','image_cover'],['顶栏背景','head_bg'],['标签栏背景','head_tab_bg'],['个人页方形背景','head_myself_squared_bg'],['底栏背景','tail_bg'],['个人页动态背景','head_myself_mp4_bg'],['首页图标','tail_icon_main','主题皮肤/底栏图标'],['首页图标_选中','tail_icon_selected_main','主题皮肤/底栏图标'],['动态图标','tail_icon_dynamic','主题皮肤/底栏图标'],['动态图标_选中','tail_icon_selected_dynamic','主题皮肤/底栏图标'],['频道图标','tail_icon_channel','主题皮肤/底栏图标'],['频道图标_选中','tail_icon_selected_channel','主题皮肤/底栏图标'],['我的图标','tail_icon_myself','主题皮肤/底栏图标'],['我的图标_选中','tail_icon_selected_myself','主题皮肤/底栏图标'],['商城图标','tail_icon_shop','主题皮肤/底栏图标'],['商城图标_选中','tail_icon_selected_shop','主题皮肤/底栏图标'],['发布按钮','tail_icon_pub_btn_bg','主题皮肤/底栏图标'],['发布按钮_选中','tail_icon_selected_pub_btn_bg','主题皮肤/底栏图标']]));
+			(data.suit_items?.space_bg || []).forEach(item => addProperties('空间背景',item,[['竖版壁纸1','image1_portrait'],['横版壁纸1','image1_landscape'],['竖版壁纸2','image2_portrait'],['横版壁纸2','image2_landscape'],['竖版动态壁纸1','space_1_mp4_vertical'],['横版动态壁纸1','space_1_mp4_horizontal'],['竖版动态壁纸2','space_2_mp4_vertical'],['横版动态壁纸2','space_2_mp4_horizontal']]));
+			(data.suit_items?.pendant || []).forEach(item => { const p=item.properties||{},name=item.name||'头像挂件'; add('头像挂件',name,p.image,'头像挂件'); add('头像挂件',name+'_缩略图',p.image_preview_small,'头像挂件'); });
+			(data.suit_items?.loading || []).forEach(item => { const p=item.properties||{},name=item.name||'加载动画'; add('加载动画',name,p.loading_url||p.image,'加载动画'); add('加载动画',name+'_缩略图',p.image_preview_small,'加载动画'); });
+			if(data.fan_user?.avatar) add('UP主信息',(data.fan_user.nickname||'UP主')+'_头像',data.fan_user.avatar,'UP主信息');
+			return resources;
+		}
+		function createSuitResourceCard(resource) {
+			const card=document.createElement('div'); card.className='media-card suit-media-card'; card._downloadInfo={title:resource.name,url:resource.url};
+			const resourcePath = resource.url.split('?')[0].toLowerCase();
+			const isArchive = resourcePath.endsWith('.zip'), isVideo = resourcePath.endsWith('.mp4') || resourcePath.endsWith('.webm');
+			if(isArchive) { const placeholder=document.createElement('div'); placeholder.className='media-retry'; placeholder.append('📦 ZIP 离线资源包'); card.appendChild(placeholder); }
+			else if(isVideo) { const video=document.createElement('video'); video.controls=true; video.preload='metadata'; attachMediaRetry(video,resource.url,'视频'); video.src=resource.url; card.appendChild(video); }
+			else { const image=document.createElement('img'); image.alt=resource.name; image.loading='lazy'; attachMediaRetry(image,resource.url,'图片'); image.src=resource.url; card.appendChild(image); }
+			const title=document.createElement('div'); title.className='title'; title.innerText=resource.name; title.title=resource.name; card.appendChild(title); return card;
+		}
+		function renderSuitResourceGrid(resources) {
+			const grid=document.getElementById('suit-resources-grid'); grid.replaceChildren(); const grouped={}; resources.forEach(item=>{(grouped[item.category] ||= []).push(item);});
+			const order=['封面','主题皮肤','空间背景','评论卡片','卡片背景','表情包','头像挂件','加载动画','UP主信息'], icons={'封面':'🎨','主题皮肤':'🎭','空间背景':'🖼️','评论卡片':'💬','卡片背景':'🃏','表情包':'😊','头像挂件':'💎','加载动画':'⏳','UP主信息':'👤'};
+			[...order.filter(category=>grouped[category]),...Object.keys(grouped).filter(category=>!order.includes(category))].forEach(category=>{ const section=document.createElement('section'); section.className='category-section'; const heading=document.createElement('div'); heading.className='category-title'; heading.append((icons[category]||'📦')+' '+category+' '); const count=document.createElement('span'); count.className='count-badge'; count.innerText=grouped[category].length; heading.appendChild(count); const cards=document.createElement('div'); cards.className='category-media-grid'; grouped[category].forEach(resource=>cards.appendChild(createSuitResourceCard(resource))); section.append(heading,cards); grid.appendChild(section); });
+		}
+		function parseSuitData() {
+			try { const raw=document.getElementById('data').value.trim(); if(!raw) throw new Error('JSON 数据不能为空！'); const json=JSON.parse(raw); if(json.code!=null&&json.code!==0)throw new Error(json.message||('API 返回错误：'+json.code)); const data=json.data||json; if(!data?.suit_items&&!data?.properties)throw new Error('未找到有效的装扮数据！'); suitZipName=data.name||'装扮资源'; suitResources=extractSuitResources(data); if(!suitResources.length)throw new Error('未能提取到任何资源！'); activeResult='suit'; document.getElementById('videos-grid').hidden=true; document.getElementById('suit-resources-grid').hidden=false; document.getElementById('result-panel').style.display='block'; document.getElementById('result-name').innerText=suitZipName+'（'+suitResources.length+' 项资源）'; document.getElementById('result-hints').innerHTML = '<span>PC端快捷键 S：鼠标位于任意数字周边上时，可单独下载该图片、视频或当前镭射效果的图片。</span><span>镭射图等图片均可点击放大查看！！！镭射预览仅供参考，实际效果可能与 B 站存在差异！</span>';renderSuitResourceGrid(suitResources); document.getElementById('result-panel').scrollIntoView({behavior:'smooth',block:'start'}); } catch(error) { alert('解析失败：'+error.message); }
+		}
+		function renderPastedData() {
+			try {
+				const raw = document.getElementById('data').value.trim();
+				if (!raw) throw new Error('JSON 数据不能为空！');
+				const json = JSON.parse(raw), payload = json?.data || json;
+				if (Array.isArray(payload?.lottery_list)) {
+					const source = getSourceInput();
+					const actId = getParam(source, 'act_id') || getParam(source, 'id');
+					if (!actId) throw new Error('商品链接中未找到有效的 act_id 或 id！');
+					const lotteryList = getAvailableLotteries(payload);
+					if (lotteryList.length >= 2) {
+						showLotterySelection(actId, lotteryList, payload.tab_lottery_id, 'manual');
+					} else {
+						const lotteryId = payload.tab_lottery_id || lotteryList[0]?.lottery_id;
+						if (!lotteryId) throw new Error('基础接口中未找到有效的 lottery_id！');
+						openDigitalDetailApi(actId, lotteryId);
+					}
+					return;
+				}
+				if (payload?.suit_items || payload?.properties?.image_cover || payload?.properties?.fan_share_image) { parseSuitData(); return; }
+				if (Array.isArray(payload?.item_list) || payload?.collect_list) { getVideos(); return; }
+				throw new Error('JSON 中未识别出装扮资源或数字周边数据。');
+			} catch(error) {
+				alert('识别失败：' + error.message);
+			}
+		}
 		function parseShineConfig(metaInfo) {
 		    const defaults = {
 		        laser_intensity: 1,
@@ -1483,17 +2201,22 @@ const htmlContent = `
 		        return defaults;
 		    }
 		}
-		function loadCorsImage(url) {
-		    const load = source => new Promise((resolve, reject) => {
-		        const image = new Image();
-		        image.crossOrigin = 'anonymous';
-		        image.referrerPolicy = 'no-referrer';
-		        image.onload = () => resolve(image);
-		        image.onerror = () => reject(new Error('图片加载失败：' + source));
-		        image.src = source;
-		    });
-		    return load(url); // 直连加载；请求 UA 由「Bili 典藏卡 UA 改写」浏览器扩展改写，不再回退 CF /proxy
-		}
+	      function loadCorsImage(url) {
+	           const load = source => new Promise((resolve, reject) => {
+		   const image = new Image();
+
+		   // 用于镭射卡面的图片请求：禁用 Referer。
+		   image.crossOrigin = 'anonymous';
+		   image.referrerPolicy = 'no-referrer';
+		   image.setAttribute('referrerpolicy', 'no-referrer');
+
+		   image.onload = () => resolve(image);
+		   image.onerror = () => reject(new Error('图片加载失败：' + source));
+		   image.src = source;
+	         });
+
+	           return load(url);
+                      }
 		function positiveModulo(value, divisor) {
 		    return ((value % divisor) + divisor) % divisor;
 		}
@@ -1653,6 +2376,12 @@ const htmlContent = `
 		        renderer.pointerY = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height));
 		    };
 		    stage.addEventListener('pointermove', updatePointer);
+		    stage.addEventListener('click', event => {
+		        if (event.target instanceof HTMLButtonElement) return;
+		        if (renderer.ready) {
+		            openLaserModal(renderer, titleText);
+		        }
+		    });
 		    toggleButton.addEventListener('click', () => {
 		        renderer.enabled = !renderer.enabled;
 		        toggleButton.innerText = renderer.enabled ? '关闭镭射' : '开启镭射';
@@ -1839,6 +2568,35 @@ const htmlContent = `
             grid.appendChild(wrapper);
         });
         }
+		function blobToDataUrl(blob) {
+		    return new Promise((resolve, reject) => {
+		        const reader = new FileReader();
+		        reader.onload = () => typeof reader.result === 'string'
+		            ? resolve(reader.result)
+		            : reject(new Error('图片转换结果无效'));
+		        reader.onerror = () => reject(reader.error || new Error('图片转换失败'));
+		        reader.onabort = () => reject(new Error('图片转换已中止'));
+		        reader.readAsDataURL(blob);
+		    });
+		}
+		async function buildEmbeddedLaserGalleryItems(items, downloadedBlobs) {
+		    const dataUrlCache = new Map();
+		    const getDataUrl = url => {
+		        if (!url || !downloadedBlobs.has(url)) return Promise.resolve(null);
+		        if (!dataUrlCache.has(url)) {
+		            dataUrlCache.set(url, blobToDataUrl(downloadedBlobs.get(url)).catch(error => {
+		                console.warn('镭射图资源嵌入失败：' + url, error);
+		                return null;
+		            }));
+		        }
+		        return dataUrlCache.get(url);
+		    };
+		    const embeddedItems = await Promise.all(items.map(async item => {
+		        const pair = await Promise.all([getDataUrl(item.imageUrl), getDataUrl(item.controlUrl)]);
+		        return { title: item.name, image: pair[0], mask: pair[1] };
+		    }));
+		    return embeddedItems.filter(item => item.image && item.mask);
+		}
 		function buildLaserGalleryHtml(items) {
 		    const galleryData = JSON.stringify(items).replace(/</g, '\\u003c');
 		    return [
@@ -1894,7 +2652,7 @@ const htmlContent = `
 		        'const ITEMS=' + galleryData + ';',
 		        'const state={index:0,enabled:true,ready:false,baseImage:null,maskImage:null,pointerX:.5,pointerY:.5,motionEnabled:false,motionListening:false,motionBaseline:null};',
 		        'const canvas=document.getElementById("canvas"),ctx=canvas.getContext("2d"),maskCanvas=document.createElement("canvas"),effectCanvas=document.createElement("canvas"),stage=document.getElementById("stage"),statusBox=document.getElementById("status"),nameBox=document.getElementById("name"),counterBox=document.getElementById("counter"),toggleBtn=document.getElementById("toggle-btn"),saveBtn=document.getElementById("save-btn"),motionBtn=document.getElementById("motion-btn");',
-		        'function fileSrc(path){return String(path||"").split("/").map(encodeURIComponent).join("/");}',
+		        'function fileSrc(path){const source=String(path||"");return /^(?:data|blob):/i.test(source)?source:source.split("/").map(encodeURIComponent).join("/");}',
 		        'function mod(value,divisor){return ((value%divisor)+divisor)%divisor;}',
 		        'function cleanName(name){return String(name||"镭射图").replace(/[\\\\/:*?"<>|]/g,"").trim()||"镭射图";}',
 		        'function loadImage(path){return new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error("图片加载失败："+path));img.src=fileSrc(path);});}',
@@ -1964,6 +2722,17 @@ const htmlContent = `
 		        '</html>'
 		    ].join('\\n');
 		}
+		async function downloadSuitFilesAsZip() {
+			if (!suitResources.length) { alert('没有可下载的装扮资源！'); return; }
+			if (isDownloading) { alert('当前有正在进行的下载任务，请等待其完成后再试！'); return; }
+			const resources=suitResources.map(resource=>Object.assign({},resource)), zipNameSafe=sanitizeFileName(suitZipName,'装扮资源'), progressContainer=document.getElementById('progress-container'), progressBar=document.getElementById('download-progress'), progressText=document.getElementById('progressText'), downloadButton=document.getElementById('download-btn'), zip=new JSZip(), names=new Map();
+			let nextIndex=0, completed=0;
+			const uniqueName=(directory,name)=>{ const key=directory+'/'+name,count=names.get(key)||0; names.set(key,count+1); return count ? name+'_'+count : name; };
+			const updateProgress=()=>{ const percent=Math.floor((completed/resources.length)*80); progressBar.value=percent; progressText.innerText='正在下载 ['+zipNameSafe+']... '+percent+'% ('+completed+'/'+resources.length+')'; };
+			const worker=async()=>{ while(nextIndex<resources.length) { const resource=resources[nextIndex++], directory=resource.subDir||resource.category||'未分类', baseName=sanitizeFileName(resource.name,'未命名素材'); try { const response=await fetchWithRetry(resource.url,{referrerPolicy:'no-referrer'},3,30000),blob=await response.blob(),extension=inferExtFromUrlOrBlob(resource.url,blob),fileName=uniqueName(directory,baseName)+extension; zip.file(directory+'/'+fileName,blob); } catch(error) { zip.file(directory+'/'+uniqueName(directory,baseName)+'_下载失败.txt','下载失败文件：'+baseName+'\\n原链接：'+resource.url+'\\n错误信息：'+error.message); } finally { completed++; updateProgress(); } } };
+			isDownloading=true; progressContainer.style.display='block'; progressBar.value=0; downloadButton.disabled=true;
+			try { await Promise.all(Array.from({length:Math.min(2,resources.length)},worker)); progressText.innerText='资源下载完成，正在压缩中，请稍候...'; const content=await zip.generateAsync({type:'blob'},metadata=>{const percent=Math.min(100,80+Math.floor((metadata.percent||0)*0.2));progressBar.value=percent;progressText.innerText='正在压缩 ['+zipNameSafe+']... '+percent+'%';}); saveAs(content,zipNameSafe+'.zip'); progressBar.value=100;progressText.innerText='压缩完毕！文件已保存。'; } catch(error) { alert('打包下载失败：'+error.message); } finally { setTimeout(()=>{progressContainer.style.display='none';progressBar.value=0;isDownloading=false;downloadButton.disabled=false;},1500); }
+		}
 		async function downloadFilesAsZip() {
 		    if (fileUrls.length === 0) { alert('没有找到可以下载的资源文件！'); return; }
 		    if (isDownloading) { alert('当前有正在进行的下载任务，请等待其完成后再试！'); return; }
@@ -1972,7 +2741,7 @@ const htmlContent = `
 		    const targetLaserControls = laserControlFiles.map(item => ({ ...item }));
 		    const targetLaserPairs = laserAssetPairs.map(item => ({ ...item }));
 		    const targetZipName = sanitizeFileName(zipName, '数字周边');
-		    const sourceLink = document.getElementById('filepath').value.trim();
+		    const sourceLink = document.getElementById('source-url').value.trim();
 		    const createUniqueFileNames = (items, fallbackPrefix) => {
 		        const nameOccurrenceMap = {};
 		        return items.map((item, index) => {
@@ -2008,7 +2777,7 @@ const htmlContent = `
 		    progressText.innerText = '准备下载...';
 		    downloadBtn.disabled = true;
 		    const zip = new JSZip();
-		    const downloadedPaths = new Map();
+		    const downloadedBlobs = new Map();
 		    let completedCount = 0;
 		    const CONCURRENCY_LIMIT = 2;
 		    let currentIndex = 0;
@@ -2042,8 +2811,8 @@ const htmlContent = `
 		    inferredExt = inferExtFromUrlOrBlob(originalUrl, blob);
 		    const fileName = directory + baseName + inferredExt;
 		    zip.file(fileName, blob);
-		    downloadedPaths.set(originalUrl, fileName);
-		    downloadedPaths.set(fetchUrl, fileName);
+		    downloadedBlobs.set(originalUrl, blob);
+		    downloadedBlobs.set(fetchUrl, blob);
 		} catch (error) {
 		    zip.file(
 		directory + baseName + '_下载失败记录_' + (index + 1) + '.txt',
@@ -2062,13 +2831,8 @@ const htmlContent = `
 		    };
 		    try {
 		        await Promise.all(Array.from({ length: Math.min(CONCURRENCY_LIMIT, downloadTasks.length) }, () => downloadWorker()));
-		        const laserGalleryItems = targetLaserPairs
-		            .map(item => ({
-		                title: item.name,
-		                image: downloadedPaths.get(item.imageUrl),
-		                mask: downloadedPaths.get(item.controlUrl)
-		            }))
-		            .filter(item => item.image && item.mask);
+		        progressText.innerText = '正在生成不依赖外部图片的镭射图展示页面...';
+		        const laserGalleryItems = await buildEmbeddedLaserGalleryItems(targetLaserPairs, downloadedBlobs);
 		        if (laserGalleryItems.length > 0) {
 		            zip.file('镭射图展示.html', buildLaserGalleryHtml(laserGalleryItems));
 		        }

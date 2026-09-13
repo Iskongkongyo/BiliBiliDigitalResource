@@ -1,0 +1,41 @@
+# BiliBiliDigitalResource - Cloudflare Workers 部署配置
+# 与 worker.js 放在同一目录即可用于 Deploy to Cloudflare / Wrangler 部署。
+
+name = "bilibili-digital-resource"
+main = "worker.js"
+compatibility_date = "2026-09-13"
+
+# 启用 *.workers.dev 地址
+workers_dev = true
+
+# 保留在 Cloudflare 控制台中手动配置的普通环境变量。
+# 这样以后通过 Git 仓库重新部署时，不会覆盖/删除控制台中的变量。
+keep_vars = true
+
+# 可观测性：方便在 Cloudflare 控制台查看 Worker 日志
+[observability]
+
+[observability.logs]
+enabled = true
+invocation_logs = true
+
+# ============================================================
+# 环境变量说明
+# ============================================================
+# 本项目无需预先配置变量即可运行，worker.js 内已有默认值。
+#
+# 强烈建议部署完成后，在 Cloudflare Worker：
+# Settings -> Variables and Secrets
+# 中新增 Secret：
+#
+# JWT_SECRET = 不填写则随机生成的高强度密钥
+#
+# 可选 Basic Auth：
+# BASIC_USER = 访问用户名
+# BASIC_PASS = 访问密码
+#
+# BASIC_USER / BASIC_PASS 任意一个留空时，不启用 Basic Auth。
+# 敏感内容不要直接提交到 wrangler.toml / GitHub 仓库。
+#
+# worker.js 还支持 BILI_* 高级覆盖变量；正常使用无需配置，
+# 仅在需要覆盖脚本内置的 Bilibili 请求参数时再到控制台添加。
